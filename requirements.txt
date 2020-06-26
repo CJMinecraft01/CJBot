@@ -1,0 +1,4 @@
+discord
+flask
+python-dotenv
+Flask-SQLAlchemy

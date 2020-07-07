@@ -1,6 +1,6 @@
 from main import db
 from models import ServerOptions
-from . import bot, get_server_options, send_message, send_error, has_admin_role
+from . import bot, get_server_options_from_context, send_message, send_error, has_admin_role
 from discord import Embed
 from discord.ext.commands import RoleConverter, Context, CheckFailure
 from typing import Optional, List, Callable, Any
@@ -53,7 +53,7 @@ async def settings(ctx, name: Optional[str], value: Optional[str]):
     if name is None:
         # Print all of the settings
 
-        server_options = get_server_options(ctx.message.channel.guild.id)
+        server_options = get_server_options_from_context(ctx)
 
         embed = Embed(title="Settings", color=0x14c6e6)
 
@@ -70,7 +70,7 @@ async def settings(ctx, name: Optional[str], value: Optional[str]):
         setting = get_setting_from_name(name)
         if setting is None:
             raise Exception("Setting not found")
-        server_options = get_server_options(ctx.message.channel.guild.id)
+        server_options = get_server_options_from_context(ctx)
         embed = Embed(title=f"Setting - {setting.name}", color=0x14c6e6)
         embed.add_field(name="Name", value=setting.name, inline=True)
         embed.add_field(name="Description", value=setting.description, inline=True)
@@ -85,7 +85,7 @@ async def settings(ctx, name: Optional[str], value: Optional[str]):
     if setting is None:
         raise Exception("Setting not found")
 
-    server_options = get_server_options(ctx.message.channel.guild.id)
+    server_options = get_server_options_from_context(ctx)
     try:
 
         result = None

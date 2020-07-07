@@ -15,9 +15,15 @@ def get_server_options(guild_id):
     return server_options
 
 
+def get_server_options_from_context(ctx):
+    if ctx.message.server is None or ctx.server.guild is None:
+        return ServerOptions(GuildId=None)
+    return get_server_options(ctx.message.channel.guild.id)
+
+
 def has_admin_role():
     async def predicate(ctx):
-        server_options = get_server_options(ctx.message.channel.guild.id)
+        server_options = get_server_options_from_context(ctx)
         if server_options.AdminRoleId is not None:
             for role in ctx.author.roles:
                 if role.id == server_options.AdminRoleId:
@@ -72,6 +78,7 @@ async def on_command_error(ctx, error):
 def run():
     from . import reactionroles
     from . import settings
+    from . import mappings
 
     token = os.environ.get("DISCORD_BOT_SECRET")
     bot.run(token)

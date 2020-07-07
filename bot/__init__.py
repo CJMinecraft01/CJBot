@@ -16,7 +16,7 @@ def get_server_options(guild_id):
 
 
 def get_server_options_from_context(ctx):
-    if ctx.message.server is None or ctx.server.guild is None:
+    if ctx.message.server is None:
         return ServerOptions(GuildId=None)
     return get_server_options(ctx.message.channel.guild.id)
 

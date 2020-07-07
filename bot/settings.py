@@ -1,6 +1,6 @@
 from main import db
 from models import ServerOptions
-from . import bot, get_server_options_from_context, send_message, send_error, has_admin_role
+from . import bot, is_dm, get_server_options_from_context, send_message, send_error, has_admin_role
 from discord import Embed
 from discord.ext.commands import RoleConverter, Context, CheckFailure
 from typing import Optional, List, Callable, Any
@@ -50,6 +50,9 @@ def get_setting_from_name(name: str):
 @bot.command(name="settings")
 @has_admin_role()
 async def settings(ctx, name: Optional[str], value: Optional[str]):
+    if is_dm(ctx):
+        await send_error(ctx, "Invalid Command", "The settings command is not valid within a DM")
+        return
     if name is None:
         # Print all of the settings
 

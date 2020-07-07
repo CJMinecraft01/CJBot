@@ -1,9 +1,14 @@
 from discord.ext import commands
+from discord import DMChannel
 from models import ServerOptions
 import os
 
 
 bot = commands.Bot(command_prefix="$")
+
+
+def is_dm(ctx):
+    return isinstance(ctx.message.channel, DMChannel)
 
 
 def get_server_options(guild_id):
@@ -16,7 +21,7 @@ def get_server_options(guild_id):
 
 
 def get_server_options_from_context(ctx):
-    if ctx.message.server is None:
+    if is_dm(ctx):
         return ServerOptions(GuildId=None)
     return get_server_options(ctx.message.channel.guild.id)
 

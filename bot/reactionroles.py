@@ -1,6 +1,6 @@
 from discord.ext.commands import TextChannelConverter, MessageConverter, RoleConverter, CheckFailure
 from main import db
-from . import bot, has_admin_role
+from . import bot, has_admin_role, is_dm
 from discord import Embed
 from models import ReactionRole
 from asyncio import TimeoutError
@@ -42,6 +42,9 @@ async def send_complete(channel, reaction_role: ReactionRole):
 @bot.command(name="reactionrole")
 @has_admin_role()
 async def reaction_role(ctx):
+    if is_dm(ctx):
+        await send_error(ctx, "Cannot use the reaction role command within a DM")
+        return
     last_message = await send_setup_message(ctx, "First tag the channel that you would like the ReactionRole message to be sent", 1)
     stage = 0
     c = ctx.message.channel

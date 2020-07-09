@@ -1,5 +1,5 @@
 from discord.ext import commands
-from discord import DMChannel
+from discord import DMChannel, Game
 from discord.ext.commands import CommandNotFound
 
 from models import ServerOptions
@@ -58,7 +58,7 @@ async def send_error(ctx, title: str, message: str):
 @bot.event
 async def on_ready():
     print("Bot is ready")
-    bot.activity = discord.Game(name="play.diversionmc.net")  # epic hope this works lolz
+    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
 
 
 @bot.event

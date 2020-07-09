@@ -1,8 +1,9 @@
 from discord.ext import commands
 from discord import DMChannel
+from discord.ext.commands import CommandNotFound
+
 from models import ServerOptions
 import os
-
 
 bot = commands.Bot(command_prefix="$")
 
@@ -35,6 +36,7 @@ def has_admin_role():
                     return True
             return False
         return True
+
     return commands.check(predicate)
 
 
@@ -56,12 +58,15 @@ async def send_error(ctx, title: str, message: str):
 @bot.event
 async def on_ready():
     print("Bot is ready")
+    bot.activity = discord.Game(name="play.diversionmc.net")  # epic hope this works lolz
 
 
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, CheckFailure):
         await send_error(ctx, "Error", "Invalid permissions")
+    if isinstance(error, CommandNotFound):
+        return  # dont want to send message for every bad command
     else:
         await send_error(ctx, "Error", "An error occurred")
 
@@ -71,13 +76,13 @@ async def on_command_error(ctx, error):
 
 # @bot.event
 # async def on_message(message):
-    # await reactionroles_old.on_message(message)
-    # await bot.process_commands(message)
+# await reactionroles_old.on_message(message)
+# await bot.process_commands(message)
 
 
 # @bot.event
 # async def on_raw_reaction_add(payload):
-    # await reactionroles_old.on_raw_reaction_add(payload)
+# await reactionroles_old.on_raw_reaction_add(payload)
 
 
 def run():

@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 from csv import DictReader
 from zipfile import ZipFile
-from utils import MASTER_PATH, default_representation
+from utils import MASTER_PATH, default_representation, time
 from requests import get
 from io import BytesIO
 from os import scandir
@@ -306,6 +306,7 @@ class MCPDownloader(MappingDownloader):
                 print(f"Skipped {version.mc_version} as already on latest snapshot {latest_snapshot.version}")
 
     @classmethod
+    @time
     def load_versions(cls):
         new_forge = parse_version("1.13")
 

@@ -103,3 +103,58 @@ def default_representation(clazz_: Optional[Type] = None, ignore_attributes: Opt
         return clazz
 
     return decorator(clazz_) if clazz_ is not None else decorator
+
+
+def time(f: FunctionType) -> FunctionType:
+    """
+    Time how long it takes for the provided function to execute and output to the console.
+
+    This is a decorator so can be used e.g.\n
+    >>> def example_function():
+    ...     pass
+    >>> example_function = time(example_function)
+    or like:
+    >>> @time
+    ... def example_function():
+    ...     pass
+
+    :param f: The function to time
+    :return: The wrapper of the function
+    """
+
+    from time import time
+    import inspect
+
+    mod = inspect.getmodule(f)
+
+    def wrapper(*args, **kwargs) -> Any:
+        """
+        A wrapper function to decorate a function, which means when the function is executed, it is timed
+
+        :param args: The arguments of the function
+        :param kwargs: The key word arguments of the function
+        :return: The return arguments of the function
+        """
+        if logger.level <= DEBUG:  # If we are debugging
+            start = time()  # Get the start time
+            ret = f(*args, **kwargs)  # Call the function
+
+            clazz = get_container_class(f)  # Get the container class of the function
+            # Get the name of the function
+            if mod is None:
+                if clazz is None:
+                    name = f"__main__.{f.__name__}"
+                else:
+                    name = f"__main__.{clazz.__name__}.{f.__name__}"
+            else:
+                if clazz is None:
+                    name = f"{mod.__name__}.{f.__name__}"
+                else:
+                    name = f"{mod.__name__}.{clazz.__name__}.{f.__name__}"
+
+            logger.debug(f"Took %s seconds to execute %s", "{:.2f}".format(time() - start), name)
+            return ret
+        else:
+            return f(*args, **kwargs)
+
+    return wrapper

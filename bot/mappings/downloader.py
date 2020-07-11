@@ -407,6 +407,8 @@ class MCPDownloader(MappingDownloader):
 
             cls.__database[meta["mc_version"]] = db
 
+        print("Loaded MCP data")
+
 
 if __name__ == '__main__':
     MCPDownloader.update_versions()

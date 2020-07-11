@@ -1,6 +1,6 @@
 from pathlib import Path
-from types import FunctionType
-from typing import Optional, Type, List
+from types import FunctionType, MethodType, MemberDescriptorType
+from typing import Optional, Type, List, Any, Union
 
 
 def __get_master_path() -> Path:
@@ -106,6 +106,34 @@ def default_representation(clazz_: Optional[Type] = None, ignore_attributes: Opt
     return decorator(clazz_) if clazz_ is not None else decorator
 
 
+def get_container_class(method: Union[MethodType, FunctionType, MemberDescriptorType]) -> Optional[type]:
+    """
+    Get the class which the provided method is a part of
+
+    :param method: The method to get the class that it is a part of
+    :return: The class which the provided method is a part of
+    """
+
+    # Source: https://stackoverflow.com/questions/3589311/get-defining-class-of-unbound-method-object-in-python-3
+    # /25959545#25959545
+
+    import inspect
+    if inspect.ismethod(method):  # If the method variable is a method type
+        for clazz in inspect.getmro(method.__self__.__class__):  # Get the all of the parent classes
+            if clazz.__dict__.get(method.__name__) is method:  # If the object with this method's name is this method
+                return clazz  # It must be that class
+        method = method.__func__  # Otherwise get the function from the method
+    if inspect.isfunction(method):  # If the method variable is a function type
+        # Get the class from the module the method is a part of using it's qualifying name
+        clazz = getattr(inspect.getmodule(method), method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
+        if isinstance(clazz, type):
+            return clazz
+    if inspect.ismethoddescriptor(method):  # If the method variable is a method descriptor
+        # noinspection SpellCheckingInspection
+        return getattr(method, '__objclass__', None)
+    return None
+
+
 def time(f: FunctionType) -> FunctionType:
     """
     Time how long it takes for the provided function to execute and output to the console.
@@ -136,26 +164,23 @@ def time(f: FunctionType) -> FunctionType:
         :param kwargs: The key word arguments of the function
         :return: The return arguments of the function
         """
-        if logger.level <= DEBUG:  # If we are debugging
-            start = time()  # Get the start time
-            ret = f(*args, **kwargs)  # Call the function
+        start = time()  # Get the start time
+        ret = f(*args, **kwargs)  # Call the function
 
-            clazz = get_container_class(f)  # Get the container class of the function
-            # Get the name of the function
-            if mod is None:
-                if clazz is None:
-                    name = f"__main__.{f.__name__}"
-                else:
-                    name = f"__main__.{clazz.__name__}.{f.__name__}"
+        clazz = get_container_class(f)  # Get the container class of the function
+        # Get the name of the function
+        if mod is None:
+            if clazz is None:
+                name = f"__main__.{f.__name__}"
             else:
-                if clazz is None:
-                    name = f"{mod.__name__}.{f.__name__}"
-                else:
-                    name = f"{mod.__name__}.{clazz.__name__}.{f.__name__}"
-
-            logger.debug(f"Took %s seconds to execute %s", "{:.2f}".format(time() - start), name)
-            return ret
+                name = f"__main__.{clazz.__name__}.{f.__name__}"
         else:
-            return f(*args, **kwargs)
+            if clazz is None:
+                name = f"{mod.__name__}.{f.__name__}"
+            else:
+                name = f"{mod.__name__}.{clazz.__name__}.{f.__name__}"
+
+        print(f"Took %s seconds to execute %s", "{:.2f}".format(time() - start), name)
+        return ret
 
     return wrapper

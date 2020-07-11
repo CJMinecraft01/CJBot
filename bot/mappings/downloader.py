@@ -350,6 +350,9 @@ class MCPDownloader(MappingDownloader):
             params = temp
 
             # TODO constructors
+            # in constructors.txt for TSRGs
+            # id class signature
+            # in params.csv, params are p_i id ...
 
             if parse_version(meta["mc_version"]) >= new_forge:
                 # TSRG parser

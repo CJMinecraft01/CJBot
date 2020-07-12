@@ -5,7 +5,7 @@ from discord.ext.commands import CommandNotFound
 from models import ServerOptions
 import os
 
-bot = commands.Bot(command_prefix="£")
+bot = commands.Bot(command_prefix="!")
 
 
 def is_dm(ctx):

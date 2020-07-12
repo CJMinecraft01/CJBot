@@ -5,7 +5,7 @@ from discord.ext.commands import CommandNotFound
 from models import ServerOptions
 import os
 
-bot = commands.Bot(command_prefix="$")
+bot = commands.Bot(command_prefix="£")
 
 
 def is_dm(ctx):
@@ -40,8 +40,6 @@ def has_admin_role():
     return commands.check(predicate)
 
 
-from .reactionroles import *
-
 
 async def send_message(ctx, title: str, message: str):
     embed = discord.Embed(title=title, description=message, color=0x14c6e6)
@@ -54,11 +52,14 @@ async def send_error(ctx, title: str, message: str):
     embed.set_footer(text="Made by CJMinecraft")
     await ctx.send(embed=embed)
 
+from .forge import *
+from .reactionroles import *
+
 
 @bot.event
 async def on_ready():
     print("Bot is ready")
-    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
+    await bot.change_presence(activity=Game(name="Dogatron03.diversionmc.net"))
 
 
 @bot.event
@@ -68,6 +69,7 @@ async def on_command_error(ctx, error):
     if isinstance(error, CommandNotFound):
         return  # dont want to send message for every bad command
     else:
+        print(error)
         await send_error(ctx, "Error", "An error occurred")
 
 

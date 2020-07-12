@@ -21,7 +21,7 @@ async def send_setup_message(ctx, message: str, part: int):
     return await ctx.send(embed=embed)
 
 
-async def send_error(ctx, message: str):
+async def send_rr_error(ctx, message: str):
     embed = Embed(title=f"Reaction Roles - Error", description=message, color=0xe61414)
     embed.set_footer(text="Made by CJMinecraft")
     await ctx.send(embed=embed)
@@ -43,7 +43,7 @@ async def send_complete(channel, reaction_role: ReactionRole):
 @has_admin_role()
 async def reaction_role(ctx):
     if is_dm(ctx):
-        await send_error(ctx, "Cannot use the reaction role command within a DM")
+        await send_rr_error(ctx, "Cannot use the reaction role command within a DM")
         return
     last_message = await send_setup_message(ctx, "First tag the channel that you would like the ReactionRole message to be sent", 1)
     stage = 0
@@ -108,7 +108,7 @@ async def reaction_role(ctx):
             await last_message.delete()
             return
         except BaseException as e:
-            await send_error(ctx, str(e))
+            await send_rr_error(ctx, str(e))
 
     rr = ReactionRole(GuildId=channel.guild.id, ChannelId=channel.id, MessageId=message.id, EmojiName=emoji.name, EmojiAnimated=emoji.animated, EmojiId=emoji.id, RoleId=role.id, ReactionRoleType=role_type.value)
     db.session.add(rr)

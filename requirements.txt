@@ -3,3 +3,4 @@ flask
 python-dotenv
 Flask-SQLAlchemy
 requests
+bs4

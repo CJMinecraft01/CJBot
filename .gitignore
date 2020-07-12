@@ -136,3 +136,5 @@ database/
 
 # Mapping Storage
 /mappings/
+
+database/database.db

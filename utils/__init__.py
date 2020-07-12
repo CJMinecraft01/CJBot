@@ -180,7 +180,7 @@ def time(f: FunctionType) -> FunctionType:
             else:
                 name = f"{mod.__name__}.{clazz.__name__}.{f.__name__}"
 
-        print(f"Took %s seconds to execute %s", "{:.2f}".format(time() - start), name)
+        print("Took %s seconds to execute %s" % ("{:.2f}".format(time() - start), name))
         return ret
 
     return wrapper

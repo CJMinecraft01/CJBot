@@ -1,5 +1,5 @@
 from json import loads, dumps
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from abc import ABCMeta, abstractmethod
 from pkg_resources import parse_version
 from pprint import pprint
@@ -8,12 +8,13 @@ from pathlib import Path
 from csv import DictReader
 from zipfile import ZipFile
 from utils import MASTER_PATH, default_representation, time
+from utils.json import Json, JsonSerializable, serializable
 from requests import get
 from io import BytesIO
 from os import scandir
 from re import compile
 from enum import Enum, auto
-
+from shutil import rmtree
 
 MAPPINGS = MASTER_PATH / "mappings"
 
@@ -41,7 +42,8 @@ class MappingType(Enum):
     METHOD = ("m", "MD", "methods", CLASS,)
     PARAMETER = ("p", None, "params", METHOD,)
 
-    def __new__(cls, key: str, searge_key: Optional[str], csv_file_name: Optional[str], parent: Optional['MappingType']):
+    def __new__(cls, key: str, searge_key: Optional[str], csv_file_name: Optional[str],
+                parent: Optional['MappingType']):
         value = len(cls.__members__) + 1
         obj = object.__new__(cls)
         obj._value_ = value
@@ -53,9 +55,20 @@ class MappingType(Enum):
 
 
 @default_representation
-class Mapping:
+@serializable
+class Mapping(JsonSerializable):
 
-    def __init__(self, mapping_type: MappingType, original_name: Optional[str], intermediate_name: str, name: Optional[str] = None, description: Optional[str] = None) -> None:
+    def serialize(self) -> Dict[str, Any]:
+        return {"mapping_type": self.__mapping_type.value, "original_name": self.__original_name,
+                "intermediate_name": self.__intermediate_name, "name": self.__name, "description": self.__description}
+
+    @staticmethod
+    def deserialize(o: Dict[str, Any]):
+        return Mapping(MappingType(o["mapping_type"]), o["original_name"], o["intermediate_name"], o["name"],
+                       o["description"])
+
+    def __init__(self, mapping_type: MappingType, original_name: Optional[str], intermediate_name: str,
+                 name: Optional[str] = None, description: Optional[str] = None) -> None:
         self.__mapping_type = mapping_type
         self.__original_name = original_name
         self.__intermediate_name = intermediate_name
@@ -90,7 +103,17 @@ class Side(Enum):
 
 
 @default_representation
+@serializable
 class Parameter(Mapping):
+
+    def serialize(self) -> Dict[str, Any]:
+        return {"original_name": self.original_name,
+                "intermediate_name": self.intermediate_name, "name": self.name, "description": self.description,
+                "side": self.__side.value}
+
+    @staticmethod
+    def deserialize(o: Dict[str, Any]):
+        return Parameter(o["original_name"], o["intermediate_name"], o["name"], o["description"], Side(o["side"]))
 
     def __init__(self, original_name: Optional[str], intermediate_name: str,
                  name: Optional[str], description: Optional[str], side: Side) -> None:
@@ -103,9 +126,24 @@ class Parameter(Mapping):
 
 
 @default_representation
+@serializable
 class Method(Mapping):
 
-    def __init__(self, original_name: str, intermediate_name: str, signature: str,
+    def serialize(self) -> Dict[str, Any]:
+        return {"original_name": self.original_name,
+                "intermediate_name": self.intermediate_name, "name": self.name, "description": self.description,
+                "side": self.__side.value, "static": self.__static, "signature": self.__signature,
+                "parameters": self.__parameters}
+
+    @staticmethod
+    def deserialize(o: Dict[str, Any]):
+        m = Method(o["original_name"], o["intermediate_name"], o["signature"], o["name"], o["description"],
+                   Side(o["side"]), o["static"])
+        for param in o["parameters"]:
+            m.add_parameter(param)
+        return m
+
+    def __init__(self, original_name: Optional[str], intermediate_name: Optional[str], signature: str,
                  name: Optional[str], description: Optional[str], side: Side, static: bool) -> None:
         super().__init__(MappingType.METHOD, original_name, intermediate_name, name, description)
         self.__signature = signature
@@ -134,7 +172,17 @@ class Method(Mapping):
 
 
 @default_representation
+@serializable
 class Field(Mapping):
+
+    def serialize(self) -> Dict[str, Any]:
+        return {"original_name": self.original_name,
+                "intermediate_name": self.intermediate_name, "name": self.name, "description": self.description,
+                "side": self.__side.value}
+
+    @staticmethod
+    def deserialize(o: Dict[str, Any]):
+        return Field(o["original_name"], o["intermediate_name"], o["name"], o["description"], Side(o["side"]))
 
     def __init__(self, original_name: str, intermediate_name: str,
                  name: Optional[str], description: Optional[str], side: Side) -> None:
@@ -147,19 +195,46 @@ class Field(Mapping):
 
 
 @default_representation
+@serializable
 class Class(Mapping):
 
-    def __init__(self, original_name: str, intermediate_name: str, name: Optional[str] = None, description: Optional[str] = None) -> None:
+    def serialize(self) -> Dict[str, Any]:
+        return {"original_name": self.original_name, "intermediate_name": self.intermediate_name, "name": self.name,
+                "description": self.description, "child_classes": self.__child_classes, "fields": self.__fields,
+                "methods": self.__methods, "constructors": self.__constructors}
+
+    @staticmethod
+    def deserialize(o: Dict[str, Any]):
+        c = Class(o["original_name"], o["intermediate_name"], o["name"], o["description"])
+        for child_class in o["child_classes"]:
+            c.add_child_class(child_class)
+        for field in o["fields"]:
+            c.add_field(field)
+        for method in o["methods"]:
+            c.add_method(method)
+        for constructor in o["constructors"]:
+            c.add_constructor(constructor)
+        return c
+
+    def __init__(self, original_name: str, intermediate_name: str, name: Optional[str] = None,
+                 description: Optional[str] = None) -> None:
         super().__init__(MappingType.CLASS, original_name, intermediate_name, name, description)
         self.__child_classes = []
         self.__fields = []
         self.__methods = []
+        self.__constructors = []
 
     def add_field(self, field: Mapping):
         self.__fields.append(field)
 
     def add_method(self, method: Method):
         self.__methods.append(method)
+
+    def add_child_class(self, clazz: 'Class'):
+        self.__child_classes.append(clazz)
+
+    def add_constructor(self, constructor: Method):
+        self.__constructors.append(constructor)
 
     @property
     def child_classes(self):
@@ -173,28 +248,49 @@ class Class(Mapping):
     def methods(self):
         return self.__methods
 
+    @property
+    def constructors(self):
+        return self.__constructors
+
 
 class MappingDatabase:
 
-    def __init__(self) -> None:
-        self.__fields = {}
+    def __init__(self, path: Path, mc_version: Optional[str] = None, snapshot: Optional[str] = None) -> None:
         self.__classes = []
-        self.__methods = {}
-        self.__parameters = {}
+        self.__mc_version = mc_version
+        self.__snapshot = snapshot
+        self.__path = path
 
     def add_class(self, clazz: Class):
         self.__classes.append(clazz)
 
+    def save(self):
+        self.__path.write_text(
+            Json.dumps({"mc_version": self.__mc_version, "snapshot": self.__snapshot, "classes": self.__classes}))
+
+    def load(self):
+        data = Json.loads(self.__path.read_text())
+        self.__mc_version = data["mc_version"]
+        self.__snapshot = data["snapshot"]
+        self.__classes = data["classes"]
+
+    @property
+    def mc_version(self):
+        return self.__mc_version
+
+    @property
+    def snapshot(self):
+        return self.__snapshot
+
 
 class MCPVersions:
-
     class MCPVersion:
-
         class MCPSnapshotVersion:
 
             def __init__(self, version: int) -> None:
                 self.__version = str(version)
-                self.__date = date(year=int(self.__version[:4]), month=int(self.__version[4:6]), day=int(self.__version[6:]))
+                self.__date = date(year=int(self.__version[:4]), month=int(self.__version[4:6]),
+                                   day=int(self.__version[6:]))
 
             @property
             def version(self):
@@ -209,7 +305,8 @@ class MCPVersions:
 
         def __init__(self, mc_version: str, snapshots: List[int], stables: List[int]) -> None:
             self.__mc_version = parse_version(mc_version)
-            self.__snapshots = sorted(list(map(MCPVersions.MCPVersion.MCPSnapshotVersion, snapshots)), key=lambda snapshot: snapshot.date, reverse=True)
+            self.__snapshots = sorted(list(map(MCPVersions.MCPVersion.MCPSnapshotVersion, snapshots)),
+                                      key=lambda snapshot: snapshot.date, reverse=True)
             self.__stables = sorted(stables, reverse=True)
 
         @property
@@ -246,6 +343,7 @@ class MCPDownloader(MappingDownloader):
     MAPPINGS_URL_STABLE = lambda mc_version, snapshot: f"http://export.mcpbot.bspk.rs/mcp_stable/{snapshot}-{mc_version}/mcp_stable-{snapshot}-{mc_version}.zip"
 
     SRG_PARAM = compile(r"(?:p_)?(\d+)_(\d+)_?")
+    SRG_CONSTRUCTOR_PARAM = compile(r"(?:p_i)?(\d+)_(\d+)_?")
     SRG_METHOD_ID = compile(r"(?:func_)?(\d+)_(\w+)_?")
 
     __versions = None
@@ -286,14 +384,15 @@ class MCPDownloader(MappingDownloader):
                 latest = loads(meta_file.read_text())["snapshot"] == latest_snapshot.version
 
             if not latest:
-                zip_file = ZipFile(BytesIO(get(cls.MAPPINGS_URL_SNAPSHOT(version.mc_version, latest_snapshot.version), stream=True).content))
-                zip_file.extractall(path=path)
+                zip_file = ZipFile(BytesIO(
+                    get(cls.MAPPINGS_URL_SNAPSHOT(version.mc_version, latest_snapshot.version), stream=True).content))
+                zip_file.extractall(path=path / "mcp")
 
                 url = cls.TSRGS_URL if version.mc_version >= new_forge else cls.SRGS_URL
 
                 zip_file = ZipFile(BytesIO(
                     get(url(version.mc_version), stream=True).content))
-                zip_file.extractall(path=path)
+                zip_file.extractall(path=path / "srg")
 
                 meta_file.write_text(data=dumps({
                     "mc_version": str(version.mc_version),
@@ -322,19 +421,35 @@ class MCPDownloader(MappingDownloader):
                 print(f"Skipping directory {directory} as no meta file exists")
                 continue
 
-            db = MappingDatabase()
+            db_file = path / "db.json"
 
-            fields_file = path / "fields.csv"
+            db: MappingDatabase
+
+            if db_file.exists():
+                db = MappingDatabase(db_file)
+                db.load()
+                if db.mc_version == meta["mc_version"] and db.snapshot == meta["snapshot"]:
+                    cls.__database[meta["mc_version"]] = db
+                    print("Found up to date database for MC", db.mc_version, "snapshot", db.snapshot)
+                    continue
+            else:
+                db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
+                print("Detected out of date database for MC", db.mc_version, "snapshot", db.snapshot)
+
+            mcp_folder = path / "mcp"
+
+            fields_file = mcp_folder / "fields.csv"
             fields = DictReader(fields_file.open(mode="r"))
             fields = {field["searge"]: field for field in fields}
 
-            methods_file = path / "methods.csv"
+            methods_file = mcp_folder / "methods.csv"
             methods = DictReader(methods_file.open(mode="r"))
             methods = {method["searge"]: method for method in methods}
 
-            params_file = path / "params.csv"
+            params_file = mcp_folder / "params.csv"
             params = DictReader(params_file.open(mode="r"))
             temp = {}
+            constructor_params = {}
             for param in params:
                 match = cls.SRG_PARAM.match(param["param"])
                 if match:
@@ -346,21 +461,34 @@ class MCPDownloader(MappingDownloader):
                         temp[method_id] = {param_index: param}
                 else:
                     # Typically these will be constructor parameters
-                    pass
+                    match = cls.SRG_CONSTRUCTOR_PARAM.match(param["param"])
+                    if match:
+                        method_id = match.group(1)
+                        param_index = match.group(2)
+                        if method_id in constructor_params.keys():
+                            constructor_params[method_id][param_index] = param
+                        else:
+                            constructor_params[method_id] = {param_index: param}
 
             params = temp
 
-            # TODO constructors
-            # in constructors.txt for TSRGs
-            # id class signature
-            # in params.csv, params are p_i id ...
+            srg_folder = path / "srg"
 
             if parse_version(meta["mc_version"]) >= new_forge:
                 # TSRG parser
-                tsrg_file = path / "config" / "joined.tsrg"
+                tsrg_file = srg_folder / "config" / "joined.tsrg"
 
-                static_methods_file = path / "config" / "static_methods.txt"
+                static_methods_file = srg_folder / "config" / "static_methods.txt"
                 static_methods = static_methods_file.read_text().splitlines()
+
+                constructors_file = srg_folder / "config" / "constructors.txt"
+                constructors = {}
+                for line in constructors_file.read_text().splitlines():
+                    data = line.split(" ")
+                    if data[1] in constructors.keys():
+                        constructors[data[1]].append({"method_id": data[0], "class": data[1], "signature": data[2]})
+                    else:
+                        constructors[data[1]] = [{"method_id": data[0], "class": data[1], "signature": data[2]}]
 
                 clazz = None
 
@@ -370,13 +498,23 @@ class MCPDownloader(MappingDownloader):
                             db.add_class(clazz)
                         names = line.split(" ")
                         clazz = Class(names[0], names[1])
+
+                        if clazz.intermediate_name in constructors.keys():
+                            for constructor in constructors[clazz.intermediate_name]:
+                                c = Method(None, None, constructor["signature"], constructor["class"], None, Side.BOTH, False)
+                                if constructor["method_id"] in constructor_params.keys():
+                                    for param in constructor_params[constructor["method_id"]]:
+                                        c.add_parameter(Parameter(None, param["param"], param["name"], None,
+                                                                  Side(int(param["side"]) + 1)))
+                                clazz.add_constructor(c)
                     else:
                         data = line[1:].split(" ")
                         if len(data) == 2:
                             # Field
                             if data[1] in fields.keys():
                                 field = fields[data[1]]
-                                clazz.add_field(Field(data[0], data[1], field["name"], field["desc"], Side(int(field["side"]) + 1)))
+                                clazz.add_field(
+                                    Field(data[0], data[1], field["name"], field["desc"], Side(int(field["side"]) + 1)))
                             else:
                                 # Mapping not found for this field so use default values
                                 clazz.add_field(Field(data[0], data[1], None, None, Side.BOTH))
@@ -384,12 +522,14 @@ class MCPDownloader(MappingDownloader):
                             if data[2] in methods.keys():
                                 method = methods[data[2]]
                                 match = cls.SRG_METHOD_ID.match(method["searge"])
-                                m = Method(data[0], data[2], data[1], method["name"], method["desc"], Side(int(method["side"]) + 1), data[2] in static_methods)
+                                m = Method(data[0], data[2], data[1], method["name"], method["desc"],
+                                           Side(int(method["side"]) + 1), data[2] in static_methods)
                                 if match is not None:
                                     method_id = match.group(1)
                                     if method_id in params.keys():
                                         for param in params[method_id].values():
-                                            m.add_parameter(Parameter(None, param["param"], param["name"], None, Side(int(param["side"]) + 1)))
+                                            m.add_parameter(Parameter(None, param["param"], param["name"], None,
+                                                                      Side(int(param["side"]) + 1)))
                                 clazz.add_method(m)
                             else:
                                 match = cls.SRG_METHOD_ID.match(data[2])
@@ -402,10 +542,96 @@ class MCPDownloader(MappingDownloader):
                                                                       Side(int(param["side"]) + 1)))
                                 clazz.add_method(m)
             else:
-                # SRG parser
-                pass
+                srg_file = srg_folder / "joined.srg"
+
+                static_methods_file = srg_folder / "static_methods.txt"
+                static_methods = static_methods_file.read_text().splitlines()
+
+                classes = {}
+
+                for line in srg_file.read_text().splitlines():
+                    if line.startswith("CL: "):
+                        line = line[4:]
+                        # Classes
+                        names = line.split(" ")
+                        clazz = Class(names[0], names[1])
+
+                        classes[names[1]] = clazz
+                    elif line.startswith("FD: "):
+                        line = line[4:]
+                        # Fields
+                        data = line.split(" ")
+                        field_data = data[1].split("/")
+                        field_name = field_data[-1]
+                        class_name = '/'.join(field_data[:-1])
+                        if field_name in fields.keys():
+                            field = fields[field_name]
+                            classes[class_name].add_field(
+                                Field(data[0].split("/")[-1], field_name, field["name"], field["desc"], Side(int(field["side"]) + 1)))
+                        else:
+                            # Mapping not found for this field so use default values
+                            classes[class_name].add_field(Field(data[0].split("/")[-1], field_name, None, None, Side.BOTH))
+                    elif line.startswith("MD: "):
+                        line = line[4:]
+                        # Methods
+                        data = line.split(" ")
+
+                        method_data = data[2].split("/")
+                        method_name = method_data[-1]
+                        class_name = '/'.join(method_data[:-1])
+
+                        if method_name in methods.keys():
+                            method = methods[method_name]
+                            match = cls.SRG_METHOD_ID.match(method["searge"])
+                            m = Method(data[0].split("/")[-1], method_name, data[3], method["name"], method["desc"],
+                                       Side(int(method["side"]) + 1), method_name in static_methods)
+                            if match is not None:
+                                method_id = match.group(1)
+                                if method_id in params.keys():
+                                    for param in params[method_id].values():
+                                        m.add_parameter(Parameter(None, param["param"], param["name"], None,
+                                                                  Side(int(param["side"]) + 1)))
+                            classes[class_name].add_method(m)
+                        else:
+                            match = cls.SRG_METHOD_ID.match(data[2])
+                            m = Method(data[0].split("/")[-1], method_name, data[3], None, None, Side.BOTH, method_name in static_methods)
+                            if match is not None:
+                                method_id = match.group(1)
+                                if method_id in params.keys():
+                                    for param in params[method_id].values():
+                                        m.add_parameter(Parameter(None, param["param"], param["name"], None,
+                                                                  Side(int(param["side"]) + 1)))
+                            classes[class_name].add_method(m)
+
+                constructors_file = srg_folder / "joined.exc"
+                for line in constructors_file.read_text().splitlines():
+                    if "V=" in line:
+                        ps = line.split("V=")[1][1:].split(",")
+                        class_name = line.split(".")[0]
+
+                        c = Method(None, None, line[line.index("("):line.index("V=")], line.split(".")[1].split("(")[0], None, Side.BOTH, False)
+
+                        for param in ps:
+                            match = cls.SRG_CONSTRUCTOR_PARAM.match(param)
+                            if match:
+                                method_id = match.group(1)
+                                param_index = match.group(2)
+                                if method_id in constructor_params.keys() and param_index in constructor_params[method_id].keys():
+                                    p = constructor_params[method_id][param_index]
+                                    c.add_parameter(Parameter(None, p["param"], p["name"], None, Side(int(p["side"]) + 1)))
+                                else:
+                                    c.add_parameter(Parameter(None, param, param, None, Side.BOTH))
+
+                        classes[class_name].add_constructor(c)
+
+                for clazz in classes.values():
+                    db.add_class(clazz)
 
             cls.__database[meta["mc_version"]] = db
+            db.save()
+            rmtree(srg_folder.as_posix())
+            rmtree(mcp_folder.as_posix())
+            print("Updated database for MC", db.mc_version, "snapshot", db.snapshot)
 
         print("Loaded MCP data")
 

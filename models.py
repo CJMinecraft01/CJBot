@@ -16,3 +16,8 @@ class ReactionRole(db.Model):
 class ServerOptions(db.Model):
     GuildId = db.Column(db.Integer, primary_key=True)
     AdminRoleId = db.Column(db.Integer)
+
+
+class UserOptions(db.Model):
+    UserId = db.Column(db.Integer, primary_key=True)
+    DefaultMCPMinecraftVersion = db.Column(db.TEXT, default="latest")

@@ -2,7 +2,7 @@ from discord.ext import commands
 from discord import DMChannel, Game, Embed
 from discord.ext.commands import CommandNotFound, CheckFailure
 
-from models import ServerOptions
+from models import ServerOptions, UserOptions
 from main import db
 import os
 
@@ -26,6 +26,19 @@ def get_server_options_from_context(ctx):
     if is_dm(ctx):
         return ServerOptions(GuildId=None)
     return get_server_options(ctx.message.channel.guild.id)
+
+
+def get_user_options(user_id):
+    user_options = UserOptions.query.filter(UserOptions.UserId == user_id).first()
+    if user_options is None:
+        user_options = UserOptions(UserId=user_id)
+        db.session.add(user_options)
+        db.session.commit()
+    return user_options
+
+
+def get_user_options_from_context(ctx):
+    return get_user_options(ctx.message.author.id)
 
 
 def has_admin_role():

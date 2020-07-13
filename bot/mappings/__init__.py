@@ -1,5 +1,5 @@
 from typing import Optional
-from bot import bot
+from bot import bot, get_user_options_from_context
 from discord import Embed
 from .downloader import MCPDownloader
 
@@ -29,6 +29,8 @@ def resolve_version(version, group: bool = False):
 
 @bot.command(name="latestmcp")
 async def latest_mcp(ctx, version: Optional[str] = None):
+    if version is None:
+        version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version)
     if version is None:
         # error
@@ -51,6 +53,8 @@ async def latest_mcp(ctx, version: Optional[str] = None):
 
 @bot.command(name="mcp")
 async def mappings(ctx, name: str, version: Optional[str] = None):
+    if version is None:
+        version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     if name.startswith("field"):
         await find_field(ctx, name, version)
     elif name.startswith("func"):
@@ -65,6 +69,8 @@ async def mappings(ctx, name: str, version: Optional[str] = None):
 
 @bot.command(name="mcpf")
 async def find_field(ctx, name: str, version: Optional[str] = None):
+    if version is None:
+        version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
     if version is None:
         # error
@@ -86,6 +92,8 @@ async def find_field(ctx, name: str, version: Optional[str] = None):
 
 @bot.command(name="mcpm")
 async def find_method(ctx, name: str, version: Optional[str] = None):
+    if version is None:
+        version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
     if version is None:
         # error
@@ -105,6 +113,8 @@ async def find_method(ctx, name: str, version: Optional[str] = None):
 
 @bot.command(name="mcpp")
 async def find_parameter(ctx, name: str, version: Optional[str] = None):
+    if version is None:
+        version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
     if version is None:
         # error

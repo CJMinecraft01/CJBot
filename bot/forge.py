@@ -83,10 +83,10 @@ class Versions:
         forge_versions_slim = OrderedDict()
         forge_versions_ = OrderedDict()
 
-        for parent_version in cls.minecraft_versions.keys():
+        for parent_version in minecraft_versions.keys():
             versions_slim = OrderedDict()
             versions = OrderedDict()
-            for version in cls.minecraft_versions[parent_version]:
+            for version in minecraft_versions[parent_version]:
                 found_slim = False
                 src = False
                 if f"{version}-latest" in promotions["promos"]:

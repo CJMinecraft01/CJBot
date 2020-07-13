@@ -48,7 +48,21 @@ async def latest_mcp(ctx, version: Optional[str] = None):
         embed.set_footer(text="Made by CJMinecraft")
         await ctx.send(embed=embed)
 
+
 @bot.command(name="mcp")
 async def mappings(name: str, version: Optional[str] = None):
-
     pass
+
+
+@bot.command(name="mcpf")
+async def find_field(ctx, name: str, version: Optional[str] = None):
+    version = resolve_version(version if version is not None else "latest")
+    if version is None:
+        # error
+        return
+    embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+    for field, clazz in MCPDownloader.database[version].search_field(name):
+        embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=field.to_message(clazz), inline=False)
+
+    embed.set_footer(text="Made by CJMinecraft")
+    await ctx.send(embed=embed)

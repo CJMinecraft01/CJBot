@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from json import loads, dumps
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from abc import ABCMeta, abstractmethod
 from pkg_resources import parse_version
 from datetime import date
@@ -194,6 +194,9 @@ class Field(Mapping):
     def side(self):
         return self.__side
 
+    def to_message(self, clazz: 'Class') -> str:
+        return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n__Description__: `{self.description if self.description is not None else 'None'}`\n__Side__: `{self.side.name}`\n__AT__: `public {clazz.intermediate_name.replace('/', '.')} {self.intermediate_name} # {self.name}`"
+
 
 @default_representation
 @serializable
@@ -236,6 +239,13 @@ class Class(Mapping):
 
     def add_constructor(self, constructor: Method):
         self.__constructors.append(constructor)
+
+    def search_field(self, search: str) -> List[Tuple[Field, 'Class']]:
+        results = []
+        for field in self.__fields:
+            if field.name == search:
+                results.append((field, self))
+        return results
 
     @property
     def child_classes(self):
@@ -282,6 +292,13 @@ class MappingDatabase:
     @property
     def snapshot(self):
         return self.__snapshot
+
+    def search_field(self, search: str) -> Tuple[Field, Class]:
+        for clazz in self.__classes:
+            result = clazz.search_field(search)
+            if len(result) > 0:
+                for r in result:
+                    yield r
 
 
 class MCPVersions:
@@ -371,7 +388,7 @@ class MCPDownloader(MappingDownloader):
     latest_minecraft_version_group = None
     latest_minecraft_version = None
 
-    __database = {}
+    database = {}
 
     MCP_FILES = MAPPINGS / "mcp"
 
@@ -478,7 +495,7 @@ class MCPDownloader(MappingDownloader):
                 db = MappingDatabase(db_file)
                 db.load()
                 if db.mc_version == meta["mc_version"] and db.snapshot == meta["snapshot"]:
-                    cls.__database[meta["mc_version"]] = db
+                    cls.database[meta["mc_version"]] = db
                     print("Found up to date database for MC", db.mc_version, "snapshot", db.snapshot)
                     continue
             else:
@@ -677,7 +694,7 @@ class MCPDownloader(MappingDownloader):
                 for clazz in classes.values():
                     db.add_class(clazz)
 
-            cls.__database[meta["mc_version"]] = db
+            cls.database[meta["mc_version"]] = db
             db.save()
             rmtree(srg_folder.as_posix())
             rmtree(mcp_folder.as_posix())

@@ -1,8 +1,9 @@
 from discord.ext import commands
-from discord import DMChannel, Game
-from discord.ext.commands import CommandNotFound
+from discord import DMChannel, Game, Embed
+from discord.ext.commands import CommandNotFound, CheckFailure
 
 from models import ServerOptions
+from main import db
 import os
 
 bot = commands.Bot(command_prefix="!")
@@ -40,9 +41,8 @@ def has_admin_role():
     return commands.check(predicate)
 
 
-
 async def send_message(ctx, title: str, message: str):
-    embed = discord.Embed(title=title, description=message, color=0x14c6e6)
+    embed = Embed(title=title, description=message, color=0x14c6e6)
     embed.set_footer(text="Made by CJMinecraft")
     await ctx.send(embed=embed)
 
@@ -52,14 +52,11 @@ async def send_error(ctx, title: str, message: str):
     embed.set_footer(text="Made by CJMinecraft")
     await ctx.send(embed=embed)
 
-from .forge import *
-from .reactionroles import *
-
 
 @bot.event
 async def on_ready():
     print("Bot is ready")
-    await bot.change_presence(activity=Game(name="Dogatron03.diversionmc.net"))
+    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
 
 
 @bot.event
@@ -87,10 +84,12 @@ async def on_command_error(ctx, error):
 # await reactionroles_old.on_raw_reaction_add(payload)
 
 
-def run():
-    from . import reactionroles
-    from . import settings
-    from . import mappings
+from . import reactionroles
+from . import settings
+from . import mappings
+from . import forge
 
+
+def run():
     token = os.environ.get("DISCORD_BOT_SECRET")
     bot.run(token)

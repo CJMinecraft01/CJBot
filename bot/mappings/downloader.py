@@ -74,7 +74,7 @@ class Mapping(JsonSerializable):
         self.__original_name = original_name
         self.__intermediate_name = intermediate_name
         self.__name = name
-        self.__description = description
+        self.__description = description if description is None or len(description) > 0 else None
 
     @property
     def mapping_type(self):
@@ -125,6 +125,9 @@ class Parameter(Mapping):
     def side(self):
         return self.__side
 
+    def to_message(self):
+        return f"`{self.intermediate_name}` -> `{self.name}`"
+
 
 @default_representation
 @serializable
@@ -171,6 +174,23 @@ class Method(Mapping):
     def parameters(self):
         return self.__parameters
 
+    def search_parameter(self, search: str):
+        results = []
+        for param in self.__parameters:
+            if param.name == search:
+                results.append(param)
+            elif param.intermediate_name == search:
+                results.append(param)
+        return results
+
+    def to_message(self, clazz: 'Class') -> str:
+        params = ', '.join(map(lambda param: param.to_message(), self.parameters)) if len(self.parameters) > 0 else "None"
+        return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
+               f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
+               f"__Side__: `{self.side.name}`\n" \
+               f"__AT__: `public {clazz.intermediate_name.replace('/', '.')} {self.intermediate_name}{self.signature} # {self.name}`\n" \
+               f"__Parameters__: {params}"
+
 
 @default_representation
 @serializable
@@ -195,7 +215,10 @@ class Field(Mapping):
         return self.__side
 
     def to_message(self, clazz: 'Class') -> str:
-        return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n__Description__: `{self.description if self.description is not None else 'None'}`\n__Side__: `{self.side.name}`\n__AT__: `public {clazz.intermediate_name.replace('/', '.')} {self.intermediate_name} # {self.name}`"
+        return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
+               f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
+               f"__Side__: `{self.side.name}`\n" \
+               f"__AT__: `public {clazz.intermediate_name.replace('/', '.')} {self.intermediate_name} # {self.name}`"
 
 
 @default_representation
@@ -245,6 +268,23 @@ class Class(Mapping):
         for field in self.__fields:
             if field.name == search:
                 results.append((field, self))
+            elif field.intermediate_name == search:
+                results.append((field, self))
+        return results
+
+    def search_method(self, search: str) -> List[Tuple[Method, 'Class']]:
+        results = []
+        for method in self.__methods:
+            if method.name == search:
+                results.append((method, self))
+            elif method.intermediate_name == search:
+                results.append((method, self))
+        return results
+
+    def search_parameters(self, search: str) -> List[Tuple[Parameter, Method]]:
+        results = []
+        for method in self.__methods:
+            results.extend([(param, method) for param in method.search_parameter(search)])
         return results
 
     @property
@@ -296,6 +336,20 @@ class MappingDatabase:
     def search_field(self, search: str) -> Tuple[Field, Class]:
         for clazz in self.__classes:
             result = clazz.search_field(search)
+            if len(result) > 0:
+                for r in result:
+                    yield r
+
+    def search_method(self, search: str) -> Tuple[Method, Class]:
+        for clazz in self.__classes:
+            result = clazz.search_method(search)
+            if len(result) > 0:
+                for r in result:
+                    yield r
+
+    def search_parameters(self, search: str) -> Tuple[Parameter, Method]:
+        for clazz in self.__classes:
+            result = clazz.search_parameters(search)
             if len(result) > 0:
                 for r in result:
                     yield r

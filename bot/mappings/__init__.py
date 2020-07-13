@@ -66,3 +66,31 @@ async def find_field(ctx, name: str, version: Optional[str] = None):
 
     embed.set_footer(text="Made by CJMinecraft")
     await ctx.send(embed=embed)
+
+
+@bot.command(name="mcpm")
+async def field_method(ctx, name: str, version: Optional[str] = None):
+    version = resolve_version(version if version is not None else "latest")
+    if version is None:
+        # error
+        return
+    embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+    for method, clazz in MCPDownloader.database[version].search_method(name):
+        embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=method.to_message(clazz), inline=False)
+
+    embed.set_footer(text="Made by CJMinecraft")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="mcpp")
+async def find_parameter(ctx, name: str, version: Optional[str] = None):
+    version = resolve_version(version if version is not None else "latest")
+    if version is None:
+        # error
+        return
+    embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+    for parameter, method in MCPDownloader.database[version].search_parameters(name):
+        embed.add_field(name=f"{version}: {method.name if method.name is not None else method.intermediate_name}", value=parameter.to_message(), inline=False)
+
+    embed.set_footer(text="Made by CJMinecraft")
+    await ctx.send(embed=embed)

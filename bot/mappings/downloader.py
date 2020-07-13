@@ -1,12 +1,13 @@
+from collections import OrderedDict
 from json import loads, dumps
 from typing import List, Optional, Dict, Any
 from abc import ABCMeta, abstractmethod
 from pkg_resources import parse_version
-from pprint import pprint
 from datetime import date
 from pathlib import Path
 from csv import DictReader
 from zipfile import ZipFile
+from sync import sync
 from utils import MASTER_PATH, default_representation, time
 from utils.json import Json, JsonSerializable, serializable
 from requests import get
@@ -315,24 +316,43 @@ class MCPVersions:
 
         @property
         def latest_snapshot(self):
-            return self.__snapshots[-1]
+            if len(self.__snapshots) > 0:
+                return self.__snapshots[0]
+            return None
 
         @property
         def latest_stable(self):
-            return self.__stables[-1]
+            if len(self.__stables) > 0:
+                return self.__stables[0]
+            return None
 
         def __repr__(self):
             return f"MCPVersion(mc_version={self.__mc_version})"
 
     def __init__(self, versions: dict) -> None:
-        self.__versions = []
+        vs = []
         for key, value in versions.items():
-            self.__versions.append(MCPVersions.MCPVersion(key, value["snapshot"], value["stable"]))
+            vs.append(MCPVersions.MCPVersion(key, value["snapshot"], value["stable"]))
 
-        self.__versions = sorted(self.__versions, key=lambda ver: ver.mc_version, reverse=True)
+        vs.append(MCPVersions.MCPVersion("1.16.1", [20200707], []))
+        vs = sorted(vs, key=lambda ver: ver.mc_version, reverse=True)
+        self.__latest = vs[0]
+        self.__versions = {str(version.mc_version): version for version in vs}
+
+    @property
+    def latest(self):
+        return self.__latest
+
+    def keys(self):
+        return self.__versions.keys()
+
+    def get_version(self, version: str):
+        if version in self.__versions.keys():
+            return self.__versions[version]
+        return None
 
     def __iter__(self):
-        return self.__versions.__iter__()
+        return self.__versions.values().__iter__()
 
 
 class MCPDownloader(MappingDownloader):
@@ -346,17 +366,42 @@ class MCPDownloader(MappingDownloader):
     SRG_CONSTRUCTOR_PARAM = compile(r"(?:p_i)?(\d+)_(\d+)_?")
     SRG_METHOD_ID = compile(r"(?:func_)?(\d+)_(\w+)_?")
 
-    __versions = None
+    versions: MCPVersions = None
+    minecraft_versions = OrderedDict()
+    latest_minecraft_version_group = None
+    latest_minecraft_version = None
 
     __database = {}
 
     MCP_FILES = MAPPINGS / "mcp"
 
     @classmethod
+    @sync(43200)
+    def update(cls):
+        from bot.forge import Versions
+        cls.update_versions()
+        cls.get_latest()
+        cls.load_versions()
+        mc_versions = OrderedDict()
+        first = True
+        for mc_group, child_versions in Versions.minecraft_versions.items():
+            versions = []
+            for version in child_versions:
+                if version in cls.versions.keys():
+                    if first:
+                        cls.latest_minecraft_version = version
+                        cls.latest_minecraft_version_group = mc_group
+                        first = False
+                    versions.append(version)
+            mc_versions[mc_group] = versions
+        cls.minecraft_versions = mc_versions
+
+    @classmethod
     def update_versions(cls):
         response = get(cls.VERSION_JSON)
         if response.status_code == 200:
-            cls.__versions = MCPVersions(loads(response.content))
+            result = loads(response.content)
+            cls.versions = MCPVersions(result)
             print("Loaded MCP versions")
 
     @classmethod
@@ -366,7 +411,7 @@ class MCPDownloader(MappingDownloader):
 
         new_forge = parse_version("1.13")
 
-        for version in cls.__versions:
+        for version in cls.versions:
             latest_snapshot: MCPVersions.MCPVersion.MCPSnapshotVersion = version.latest_snapshot
 
             path = cls.MCP_FILES / str(version.mc_version)
@@ -384,23 +429,27 @@ class MCPDownloader(MappingDownloader):
                 latest = loads(meta_file.read_text())["snapshot"] == latest_snapshot.version
 
             if not latest:
-                zip_file = ZipFile(BytesIO(
-                    get(cls.MAPPINGS_URL_SNAPSHOT(version.mc_version, latest_snapshot.version), stream=True).content))
-                zip_file.extractall(path=path / "mcp")
+                try:
+                    zip_file = ZipFile(BytesIO(
+                        get(cls.MAPPINGS_URL_SNAPSHOT(version.mc_version, latest_snapshot.version), stream=True).content))
+                    zip_file.extractall(path=path / "mcp")
 
-                url = cls.TSRGS_URL if version.mc_version >= new_forge else cls.SRGS_URL
+                    url = cls.TSRGS_URL if version.mc_version >= new_forge else cls.SRGS_URL
 
-                zip_file = ZipFile(BytesIO(
-                    get(url(version.mc_version), stream=True).content))
-                zip_file.extractall(path=path / "srg")
+                    zip_file = ZipFile(BytesIO(
+                        get(url(version.mc_version), stream=True).content))
+                    zip_file.extractall(path=path / "srg")
 
-                meta_file.write_text(data=dumps({
-                    "mc_version": str(version.mc_version),
-                    "snapshot": latest_snapshot.version,
-                    "tsrg": version.mc_version >= new_forge
-                }))
+                    meta_file.write_text(data=dumps({
+                        "mc_version": str(version.mc_version),
+                        "snapshot": latest_snapshot.version,
+                        "tsrg": version.mc_version >= new_forge
+                    }))
 
-                print("Updated mappings for", version.mc_version)
+                    print("Updated mappings for", version.mc_version)
+                except Exception as e:
+                    print(f"An error occurred when trying to download mappings for {version.mc_version}")
+                    print(e)
             else:
                 print(f"Skipped {version.mc_version} as already on latest snapshot {latest_snapshot.version}")
 
@@ -503,7 +552,7 @@ class MCPDownloader(MappingDownloader):
                             for constructor in constructors[clazz.intermediate_name]:
                                 c = Method(None, None, constructor["signature"], constructor["class"], None, Side.BOTH, False)
                                 if constructor["method_id"] in constructor_params.keys():
-                                    for param in constructor_params[constructor["method_id"]]:
+                                    for param in constructor_params[constructor["method_id"]].values():
                                         c.add_parameter(Parameter(None, param["param"], param["name"], None,
                                                                   Side(int(param["side"]) + 1)))
                                 clazz.add_constructor(c)
@@ -605,24 +654,25 @@ class MCPDownloader(MappingDownloader):
 
                 constructors_file = srg_folder / "joined.exc"
                 for line in constructors_file.read_text().splitlines():
-                    if "V=" in line:
+                    if "V=|" in line:
                         ps = line.split("V=")[1][1:].split(",")
                         class_name = line.split(".")[0]
 
-                        c = Method(None, None, line[line.index("("):line.index("V=")], line.split(".")[1].split("(")[0], None, Side.BOTH, False)
+                        if class_name in classes.keys():
+                            c = Method(None, None, line[line.index("("):line.index("V=")], line[line.index('.'):line.index('(')], None, Side.BOTH, False)
 
-                        for param in ps:
-                            match = cls.SRG_CONSTRUCTOR_PARAM.match(param)
-                            if match:
-                                method_id = match.group(1)
-                                param_index = match.group(2)
-                                if method_id in constructor_params.keys() and param_index in constructor_params[method_id].keys():
-                                    p = constructor_params[method_id][param_index]
-                                    c.add_parameter(Parameter(None, p["param"], p["name"], None, Side(int(p["side"]) + 1)))
-                                else:
-                                    c.add_parameter(Parameter(None, param, param, None, Side.BOTH))
+                            for param in ps:
+                                match = cls.SRG_CONSTRUCTOR_PARAM.match(param)
+                                if match:
+                                    method_id = match.group(1)
+                                    param_index = match.group(2)
+                                    if method_id in constructor_params.keys() and param_index in constructor_params[method_id].keys():
+                                        p = constructor_params[method_id][param_index]
+                                        c.add_parameter(Parameter(None, p["param"], p["name"], None, Side(int(p["side"]) + 1)))
+                                    else:
+                                        c.add_parameter(Parameter(None, param, param, None, Side.BOTH))
 
-                        classes[class_name].add_constructor(c)
+                            classes[class_name].add_constructor(c)
 
                 for clazz in classes.values():
                     db.add_class(clazz)

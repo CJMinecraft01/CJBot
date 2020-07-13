@@ -51,7 +51,7 @@ class Versions:
         return f"http://files.minecraftforge.net/maven/net/minecraftforge/forge/index_{mc_version}.html"
 
     @classmethod
-    def is_src(cls, files: List[List[str]]):
+    def is_src(cls, files: List[List[str]]) -> bool:
         return len(list(filter(lambda file: file[1] == "src", files))) > 0
 
     @classmethod
@@ -61,6 +61,7 @@ class Versions:
         page = get(cls.FORGE_URL)
         soup = BeautifulSoup(page.text, "html.parser")
         first = True
+        minecraft_versions = OrderedDict()
         for version in soup.find_all("li", attrs={"class": "li-version-list"}):
             parent_version = version.find("a").text.strip()
             child_versions = []
@@ -75,9 +76,13 @@ class Versions:
                 if first:
                     cls.latest_minecraft_version = child_versions[-1]
                     first = False
-            cls.minecraft_versions[parent_version] = child_versions
+            minecraft_versions[parent_version] = child_versions
         print("Fetched supported MC versions")
         promotions = loads(get(cls.FORGE_PROMOTIONS_URL).content)
+
+        forge_versions_slim = OrderedDict()
+        forge_versions_ = OrderedDict()
+
         for parent_version in cls.minecraft_versions.keys():
             versions_slim = OrderedDict()
             versions = OrderedDict()
@@ -120,9 +125,13 @@ class Versions:
                 # get all forge versions for this mc version
                 forge_vers = OrderedDict({ver.contents[0].strip(): ForgeVersion(version, ver.contents[0].strip(), src) for ver in soup.find_all("td", attrs={"class": "download-version"})})
                 versions[version] = forge_vers
-            cls.forge_versions_slim[parent_version] = versions_slim
-            cls.forge_versions[parent_version] = versions
+            forge_versions_slim[parent_version] = versions_slim
+            forge_versions_[parent_version] = versions
         print("Fetched forge versions")
+
+        cls.minecraft_versions = minecraft_versions
+        cls.forge_versions_slim = forge_versions_slim
+        cls.forge_versions = forge_versions_
 
 
 def resolve_version(version, group: bool = False):

@@ -243,6 +243,9 @@ async def mcversions(ctx, version: Optional[str] = None):
     elif version in Versions.minecraft_versions.keys():
         versions = ", ".join(Versions.minecraft_versions[version])
         embed.add_field(name=version, value=versions, inline=False)
+    else:
+        # error
+        return
     embed.set_footer(text="Made by Dogatron03")
     await ctx.send(embed=embed)
 

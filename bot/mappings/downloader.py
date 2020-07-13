@@ -333,6 +333,10 @@ class MappingDatabase:
     def snapshot(self):
         return self.__snapshot
 
+    @property
+    def classes(self):
+        return self.__classes
+
     def search_field(self, search: str) -> Tuple[Field, Class]:
         for clazz in self.__classes:
             result = clazz.search_field(search)
@@ -450,9 +454,14 @@ class MCPDownloader(MappingDownloader):
     @sync(43200)
     def update(cls):
         from bot.forge import Versions
+        from time import sleep
         cls.update_versions()
         cls.get_latest()
         cls.load_versions()
+        print("Waiting for minecraft versions")
+        while len(Versions.minecraft_versions.items()) == 0:
+            sleep(1)
+        print("Finished waiting")
         mc_versions = OrderedDict()
         first = True
         for mc_group, child_versions in Versions.minecraft_versions.items():
@@ -466,6 +475,7 @@ class MCPDownloader(MappingDownloader):
                     versions.append(version)
             mc_versions[mc_group] = versions
         cls.minecraft_versions = mc_versions
+        print("Detected latest MCP minecraft versions")
 
     @classmethod
     def update_versions(cls):

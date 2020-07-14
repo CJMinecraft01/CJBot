@@ -3,6 +3,7 @@ from pbwrap import Pastebin
 from os import getenv
 from mimetypes import guess_type
 from requests import get
+from discord import Embed
 
 
 PASTEBIN_DEV_KEY = getenv("PASTEBIN_DEV_KEY")
@@ -31,4 +32,7 @@ async def on_message(message):
                 urls += url + " "
         if len(urls) > 0:
             await message.delete()
-            await ctx.send(f"{message.content} {urls}")
+            embed = Embed(description=f"{message.content} {urls}")
+            embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+            embed.set_footer(text="Made by CJMinecraft")
+            await ctx.send(embed=embed)

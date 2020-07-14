@@ -1,5 +1,5 @@
 from typing import Optional
-from bot import bot, get_user_options_from_context
+from bot import bot, get_user_options_from_context, InvalidVersion
 from discord import Embed
 from .downloader import MCPDownloader
 
@@ -33,14 +33,12 @@ async def latest_mcp(ctx, version: Optional[str] = None):
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version)
     if version is None:
-        # error
-        pass
+        raise InvalidVersion("", True)
     else:
         embed = Embed(title="MCP Versions for " + version, color=0x2E4460)
         mcp_version = MCPDownloader.versions.get_version(version)
         if mcp_version is None:
-            # error
-            return
+            raise InvalidVersion("", True)
 
         if snapshot := mcp_version.latest_snapshot:
             embed.add_field(name="Snapshot", value=snapshot.version, inline=True)
@@ -51,10 +49,17 @@ async def latest_mcp(ctx, version: Optional[str] = None):
         await ctx.send(embed=embed)
 
 
+async def not_found(ctx):
+    embed = Embed(title="List of MCP Mappings", description="No results found", color=0x2E4460)
+    embed.set_footer(text="Made by CJMinecraft")
+    await ctx.send(embed=embed)
+
+
 @bot.command(name="mcp")
 async def mappings(ctx, name: str, version: Optional[str] = None):
     if version is None:
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
+
     if name.startswith("field"):
         await find_field(ctx, name, version)
     elif name.startswith("func"):
@@ -62,9 +67,45 @@ async def mappings(ctx, name: str, version: Optional[str] = None):
     elif name.startswith("p"):
         await find_parameter(ctx, name, version)
     else:
-        await find_field(ctx, name, version)
-        await find_method(ctx, name, version)
-        await find_parameter(ctx, name, version)
+        version = resolve_version(version if version is not None else "latest")
+        if version is None:
+            raise InvalidVersion("", True)
+        found_field = False
+
+        embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+        for field, clazz in MCPDownloader.database[version].search_field(name):
+            found_field = True
+            embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=field.to_message(clazz), inline=False)
+
+        embed.set_footer(text="Made by CJMinecraft")
+        if found_field:
+            await ctx.send(embed=embed)
+
+        found_method = False
+
+        embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+        for method, clazz in MCPDownloader.database[version].search_method(name):
+            found_method = True
+            embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=method.to_message(clazz), inline=False)
+
+        embed.set_footer(text="Made by CJMinecraft")
+        if found_method:
+            await ctx.send(embed=embed)
+
+        found_param = False
+
+        embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+        for parameter, method in MCPDownloader.database[version].search_parameters(name):
+            found_param = True
+            embed.add_field(name=f"{version}: {method.name if method.name is not None else method.intermediate_name}",
+                            value=parameter.to_message(), inline=False)
+
+        embed.set_footer(text="Made by CJMinecraft")
+        if found_param:
+            await ctx.send(embed=embed)
+
+        if not (found_field or found_method or found_param):
+            await not_found(ctx)
 
 
 @bot.command(name="mcpf")
@@ -73,8 +114,7 @@ async def find_field(ctx, name: str, version: Optional[str] = None):
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
     if version is None:
-        # error
-        return
+        raise InvalidVersion("", True)
 
     found = False
 
@@ -84,6 +124,7 @@ async def find_field(ctx, name: str, version: Optional[str] = None):
         embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=field.to_message(clazz), inline=False)
 
     if not found:
+        await not_found(ctx)
         return
 
     embed.set_footer(text="Made by CJMinecraft")
@@ -96,8 +137,7 @@ async def find_method(ctx, name: str, version: Optional[str] = None):
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
     if version is None:
-        # error
-        return
+        raise InvalidVersion("", True)
     found = False
     embed = Embed(title="List of MCP Mappings", color=0x2E4460)
     for method, clazz in MCPDownloader.database[version].search_method(name):
@@ -105,6 +145,7 @@ async def find_method(ctx, name: str, version: Optional[str] = None):
         embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=method.to_message(clazz), inline=False)
 
     if not found:
+        await not_found(ctx)
         return
 
     embed.set_footer(text="Made by CJMinecraft")
@@ -117,14 +158,14 @@ async def find_parameter(ctx, name: str, version: Optional[str] = None):
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
     if version is None:
-        # error
-        return
+        raise InvalidVersion("", True)
     embed = Embed(title="List of MCP Mappings", color=0x2E4460)
     found = False
     for parameter, method in MCPDownloader.database[version].search_parameters(name):
         found = True
         embed.add_field(name=f"{version}: {method.name if method.name is not None else method.intermediate_name}", value=parameter.to_message(), inline=False)
     if not found:
+        await not_found(ctx)
         return
     embed.set_footer(text="Made by CJMinecraft")
     await ctx.send(embed=embed)

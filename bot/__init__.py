@@ -1,6 +1,6 @@
 from discord.ext import commands
-from discord import DMChannel, Game, Embed, Status, Activity
-from discord.ext.commands import CommandNotFound, CheckFailure
+from discord import DMChannel, Game, Embed, Status
+from discord.ext.commands import CommandNotFound, CheckFailure, CommandInvokeError
 
 from models import ServerOptions, UserOptions
 from main import db
@@ -76,12 +76,31 @@ async def on_ready():
     print("Bot is ready")
 
 
+class InvalidVersion(Exception):
+
+    def __init__(self, version: str, mc: bool) -> None:
+        super().__init__("Invalid version!")
+        self.__version = version
+        self.__mc = mc
+
+    @property
+    def version(self):
+        return self.__version
+
+    @property
+    def mc(self):
+        return self.__mc
+
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, CheckFailure):
         await send_error(ctx, "Error", "Invalid permissions")
-    if isinstance(error, CommandNotFound):
+    elif isinstance(error, CommandNotFound):
         return  # dont want to send message for every bad command
+    elif isinstance(error, CommandInvokeError):
+        if isinstance(error.original, InvalidVersion):
+            await send_error(ctx, "Version Error", f"Please provide a vaild {'Minecraft' if error.original.mc else 'Forge'} version. To see all available versions type `{bot.command_prefix}{'mc' if error.original.mc else 'forge'}versions {error.original.version}`")
     else:
         print(error)
         await send_error(ctx, "Error", "An error occurred")
@@ -92,7 +111,7 @@ async def background_task():
     await bot.wait_until_ready()
     await bot.change_presence(status=Status.dnd)
     await schedule_functions()
-    await bot.change_presence(status=Status.online, activity=Game(name="play.diversionmc.net"))
+    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
     while True:
         await schedule.run_pending()
         await sleep(1)

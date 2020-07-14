@@ -560,9 +560,12 @@ class MCPDownloader(MappingDownloader):
                     cls.database[meta["mc_version"]] = db
                     print("Found up to date database for MC", db.mc_version, "snapshot", db.snapshot)
                     continue
+                else:
+                    db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
+                    print("Detected out of date database for MC", db.mc_version, "snapshot", db.snapshot)
             else:
                 db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
-                print("Detected out of date database for MC", db.mc_version, "snapshot", db.snapshot)
+                print("Couldn't find database for MC", db.mc_version, "snapshot", db.snapshot)
 
             mcp_folder = path / "mcp"
 

@@ -6,7 +6,7 @@ from requests import get
 from json import loads
 from collections import OrderedDict
 
-from . import bot, send_error
+from . import bot, send_error, InvalidVersion
 
 
 @default_representation
@@ -161,17 +161,18 @@ async def mdk(ctx, version: str, forge: Optional[str] = None):
     resolved = resolve_version(version)
     embed = discord.Embed(title="MDK Download for " + resolved, color=0x2E4460)
     if resolved is None:
-        await send_error(ctx, "Version Error",
-                         "Please provide a valid Minecraft version. To see all available version type " +
-                         bot.command_prefix + "mcversions")
-        return
+        raise InvalidVersion("", True)
+        # await send_error(ctx, "Version Error",
+        #                  "Please provide a valid Minecraft version. To see all available version type " +
+        #                  bot.command_prefix + "mcversions")
+        # return
     if forge is not None:
         parent_version = resolve_version(resolved, True)
         if forge not in Versions.forge_versions[parent_version][resolved]:
-            await send_error(ctx, "Version Error",
-                             "Please provide a valid Forge version. To see all available version type " +
-                             bot.command_prefix + "forgeversions " + resolved)
-            return
+            raise InvalidVersion(resolved, False)
+            # await send_error(ctx, "Version Error",
+            #                  "Please provide a valid Forge version. To see all available version type " +
+            #                  bot.command_prefix + "forgeversions " + resolved)
         ver = Versions.forge_versions[parent_version][resolved][forge]
         embed.add_field(name=ver.forge_version, value=ver.mdk, inline=True)
         # versions = await fetch_versions(resolved)
@@ -216,9 +217,10 @@ async def forge_versions(ctx, version: str):
     #     await ctx.send(embed=embed)
     #     return
     if resolved is None:
-        await send_error(ctx, "Version Error",
-                         "Please provide a valid Minecraft version. To see all available version type " +
-                         bot.command_prefix + "mcversions")
+        raise InvalidVersion("", True)
+        # await send_error(ctx, "Version Error",
+        #                  "Please provide a valid Minecraft version. To see all available version type " +
+        #                  bot.command_prefix + "mcversions")
         return
     embed = discord.Embed(title="Forge Versions", color=0x2E4460)
     version_group = resolve_version(resolved, True)
@@ -234,17 +236,18 @@ async def forge_versions(ctx, version: str):
 @bot.command(name="mcversions")
 async def mcversions(ctx, version: Optional[str] = None):
     embed = discord.Embed(title="Supported Minecraft Versions by Forge", color=0x2E4460)
-    version = resolve_version(version, True)
+    handled = False
     if version is None:
+        handled = True
         for parent_version, child_versions in Versions.minecraft_versions.items():
             versions = ", ".join(child_versions)
             embed.add_field(name=parent_version, value=versions, inline=False)
-    elif version in Versions.minecraft_versions.keys():
+    version = resolve_version(version, True)
+    if version in Versions.minecraft_versions.keys():
         versions = ", ".join(Versions.minecraft_versions[version])
         embed.add_field(name=version, value=versions, inline=False)
-    else:
-        # error
-        return
+    elif not handled:
+        raise InvalidVersion("", True)
     embed.set_footer(text="Made by Dogatron03")
     await ctx.send(embed=embed)
 
@@ -256,10 +259,7 @@ async def forge_latest(ctx, version: Optional[str] = None):
     else:
         resolved = resolve_version(version)
     if resolved is None:
-        await send_error(ctx, "Version Error",
-                         "Please provide a valid Minecraft version. To see all available version type " +
-                         bot.command_prefix + "mcversions")
-        return
+        raise InvalidVersion("", True)
 
     embed = discord.Embed(title="Forge Versions for " + resolved, color=0x2E4460)
 

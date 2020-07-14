@@ -141,11 +141,11 @@ async def background_task():
     from asyncio import sleep
     await bot.wait_until_ready()
     await bot.change_presence(status=Status.dnd)
-    # await schedule_functions()
+    await schedule_functions()
     await bot.change_presence(activity=Game(name="play.diversionmc.net"))
-    # while True:
-    #     await schedule.run_pending()
-    #     await sleep(1)
+    while True:
+        await schedule.run_pending()
+        await sleep(1)
 
 
 bot.loop.create_task(background_task())

@@ -451,16 +451,14 @@ class MCPDownloader(MappingDownloader):
     MCP_FILES = MAPPINGS / "mcp"
 
     @classmethod
-    @sync(43200)
-    def update(cls):
+    @sync
+    async def update(cls):
         from bot.forge import Versions
-        from time import sleep
         cls.update_versions()
         cls.get_latest()
         cls.load_versions()
         print("Waiting for minecraft versions")
-        while len(Versions.minecraft_versions.items()) == 0:
-            sleep(1)
+        await Versions.fetch_versions()
         print("Finished waiting")
         mc_versions = OrderedDict()
         first = True

@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from requests import get
 from json import loads
 from collections import OrderedDict
-from sync import sync
+from sync_old import sync
 
 from . import bot, send_error
 
@@ -36,6 +36,8 @@ class ForgeVersion:
 
 
 class Versions:
+    SYNCING = False
+
     minecraft_versions = OrderedDict()
     forge_versions_slim = OrderedDict()
     forge_versions = OrderedDict()
@@ -55,9 +57,7 @@ class Versions:
         return len(list(filter(lambda file: file[1] == "src", files))) > 0
 
     @classmethod
-    @time
-    @sync(43200)
-    def fetch_versions(cls):
+    async def fetch_versions(cls):
         page = get(cls.FORGE_URL)
         soup = BeautifulSoup(page.text, "html.parser")
         first = True

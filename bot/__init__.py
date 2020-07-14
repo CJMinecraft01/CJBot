@@ -4,7 +4,9 @@ from discord.ext.commands import CommandNotFound, CheckFailure
 
 from models import ServerOptions, UserOptions
 from main import db
+from sync import schedule_functions
 import os
+import aioschedule as schedule
 
 bot = commands.Bot(command_prefix="!")
 
@@ -83,18 +85,16 @@ async def on_command_error(ctx, error):
         await send_error(ctx, "Error", "An error occurred")
 
 
-# from . import reactionroles_old
+async def background_task():
+    from asyncio import sleep
+    await bot.wait_until_ready()
+    await schedule_functions()
+    while True:
+        await schedule.run_pending()
+        await sleep(1)
 
 
-# @bot.event
-# async def on_message(message):
-# await reactionroles_old.on_message(message)
-# await bot.process_commands(message)
-
-
-# @bot.event
-# async def on_raw_reaction_add(payload):
-# await reactionroles_old.on_raw_reaction_add(payload)
+bot.loop.create_task(background_task())
 
 
 from . import reactionroles

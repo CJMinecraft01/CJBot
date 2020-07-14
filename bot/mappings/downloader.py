@@ -530,7 +530,7 @@ class MCPDownloader(MappingDownloader):
                         "tsrg": version.mc_version >= new_forge
                     }))
 
-                    logger.info("Updated mappings for", version.mc_version)
+                    logger.info("Updated mappings for %s", version.mc_version)
                 except Exception as e:
                     logger.error(f"An error occurred when trying to download mappings for {version.mc_version}")
                     logger.exception(e)
@@ -563,14 +563,14 @@ class MCPDownloader(MappingDownloader):
                 db.load()
                 if db.mc_version == meta["mc_version"] and db.snapshot == meta["snapshot"]:
                     cls.database[meta["mc_version"]] = db
-                    logger.info("Found up to date database for MC", db.mc_version, "snapshot", db.snapshot)
+                    logger.info(f"Found up to date database for MC {db.mc_version} snapshot {db.snapshot}")
                     continue
                 else:
                     db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
-                    logger.info("Detected out of date database for MC", db.mc_version, "snapshot", db.snapshot)
+                    logger.info(f"Detected out of date database for MC {db.mc_version} snapshot {db.snapshot}")
             else:
                 db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
-                logger.info("Couldn't find database for MC", db.mc_version, "snapshot", db.snapshot)
+                logger.info(f"Couldn't find database for MC {db.mc_version} snapshot {db.snapshot}")
 
             mcp_folder = path / "mcp"
 
@@ -768,7 +768,7 @@ class MCPDownloader(MappingDownloader):
             db.save()
             rmtree(srg_folder.as_posix())
             rmtree(mcp_folder.as_posix())
-            logger.info("Updated database for MC", db.mc_version, "snapshot", db.snapshot)
+            logger.info(f"Updated database for MC {db.mc_version} snapshot {db.snapshot}")
 
         logger.info("Loaded MCP data")
 

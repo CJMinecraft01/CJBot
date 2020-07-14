@@ -20,8 +20,5 @@ db.session.commit()
 if __name__ == "__main__":
     from bot import run as start_bot
     from website import run as start_website
-    from sync_old import Scheduler
     start_website(app)
-    s = Scheduler()
-    s.start()
     start_bot()

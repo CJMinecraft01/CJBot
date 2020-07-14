@@ -5,7 +5,6 @@ from bs4 import BeautifulSoup
 from requests import get
 from json import loads
 from collections import OrderedDict
-from sync_old import sync
 
 from . import bot, send_error
 

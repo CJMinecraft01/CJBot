@@ -1,5 +1,5 @@
 from discord.ext import commands
-from discord import DMChannel, Game, Embed
+from discord import DMChannel, Game, Embed, Status, Activity
 from discord.ext.commands import CommandNotFound, CheckFailure
 
 from models import ServerOptions, UserOptions
@@ -9,6 +9,9 @@ import os
 import aioschedule as schedule
 
 bot = commands.Bot(command_prefix="!")
+
+
+CJ_USER_ID = 232575009200013313
 
 
 def is_dm(ctx):
@@ -71,7 +74,6 @@ async def send_error(ctx, title: str, message: str):
 @bot.event
 async def on_ready():
     print("Bot is ready")
-    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
 
 
 @bot.event
@@ -88,7 +90,9 @@ async def on_command_error(ctx, error):
 async def background_task():
     from asyncio import sleep
     await bot.wait_until_ready()
+    await bot.change_presence(status=Status.dnd)
     await schedule_functions()
+    await bot.change_presence(status=Status.online, activity=Game(name="play.diversionmc.net"))
     while True:
         await schedule.run_pending()
         await sleep(1)

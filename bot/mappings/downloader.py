@@ -16,6 +16,11 @@ from os import scandir
 from re import compile
 from enum import Enum, auto
 from shutil import rmtree
+from logging import getLogger
+
+
+logger = getLogger("mcp")
+
 
 MAPPINGS = MASTER_PATH / "mappings"
 
@@ -457,9 +462,9 @@ class MCPDownloader(MappingDownloader):
         cls.update_versions()
         cls.get_latest()
         cls.load_versions()
-        print("Waiting for minecraft versions")
+        logger.info("Waiting for minecraft versions")
         await Versions.fetch_versions()
-        print("Finished waiting")
+        logger.info("Finished waiting")
         mc_versions = OrderedDict()
         first = True
         for mc_group, child_versions in Versions.minecraft_versions.items():
@@ -473,7 +478,7 @@ class MCPDownloader(MappingDownloader):
                     versions.append(version)
             mc_versions[mc_group] = versions
         cls.minecraft_versions = mc_versions
-        print("Detected latest MCP minecraft versions")
+        logger.info("Detected latest MCP minecraft versions")
 
     @classmethod
     def update_versions(cls):
@@ -481,7 +486,7 @@ class MCPDownloader(MappingDownloader):
         if response.status_code == 200:
             result = loads(response.content)
             cls.versions = MCPVersions(result)
-            print("Loaded MCP versions")
+            logger.info("Loaded MCP versions")
 
     @classmethod
     def get_latest(cls):
@@ -525,12 +530,12 @@ class MCPDownloader(MappingDownloader):
                         "tsrg": version.mc_version >= new_forge
                     }))
 
-                    print("Updated mappings for", version.mc_version)
+                    logger.info("Updated mappings for", version.mc_version)
                 except Exception as e:
-                    print(f"An error occurred when trying to download mappings for {version.mc_version}")
-                    print(e)
+                    logger.error(f"An error occurred when trying to download mappings for {version.mc_version}")
+                    logger.exception(e)
             else:
-                print(f"Skipped {version.mc_version} as already on latest snapshot {latest_snapshot.version}")
+                logger.info(f"Skipped {version.mc_version} as already on latest snapshot {latest_snapshot.version}")
 
     @classmethod
     @time
@@ -546,7 +551,7 @@ class MCPDownloader(MappingDownloader):
             if meta_file.exists():
                 meta = loads(meta_file.read_text())
             else:
-                print(f"Skipping directory {directory} as no meta file exists")
+                logger.info(f"Skipping directory {directory} as no meta file exists")
                 continue
 
             db_file = path / "db.json"
@@ -558,14 +563,14 @@ class MCPDownloader(MappingDownloader):
                 db.load()
                 if db.mc_version == meta["mc_version"] and db.snapshot == meta["snapshot"]:
                     cls.database[meta["mc_version"]] = db
-                    print("Found up to date database for MC", db.mc_version, "snapshot", db.snapshot)
+                    logger.info("Found up to date database for MC", db.mc_version, "snapshot", db.snapshot)
                     continue
                 else:
                     db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
-                    print("Detected out of date database for MC", db.mc_version, "snapshot", db.snapshot)
+                    logger.info("Detected out of date database for MC", db.mc_version, "snapshot", db.snapshot)
             else:
                 db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
-                print("Couldn't find database for MC", db.mc_version, "snapshot", db.snapshot)
+                logger.info("Couldn't find database for MC", db.mc_version, "snapshot", db.snapshot)
 
             mcp_folder = path / "mcp"
 
@@ -763,9 +768,9 @@ class MCPDownloader(MappingDownloader):
             db.save()
             rmtree(srg_folder.as_posix())
             rmtree(mcp_folder.as_posix())
-            print("Updated database for MC", db.mc_version, "snapshot", db.snapshot)
+            logger.info("Updated database for MC", db.mc_version, "snapshot", db.snapshot)
 
-        print("Loaded MCP data")
+        logger.info("Loaded MCP data")
 
 
 if __name__ == '__main__':

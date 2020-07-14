@@ -66,8 +66,16 @@ def user_has_admin_role(ctx):
     return False
 
 
-@bot.command(name="settings")
+@bot.command(name="settings", short_doc="Manages user settings")
 async def settings(ctx, name: Optional[str], value: Optional[str]):
+    """
+    Manages user settings
+
+    :param ctx: The contex for the command
+    :param name: Optional name of the setting
+    :param value: The value for the provided setting
+    :return: None
+    """
     # if is_dm(ctx):
     #     await send_error(ctx, "Invalid Command", "The settings command is not valid within a DM")
     #     return

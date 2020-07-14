@@ -1,6 +1,6 @@
 from discord.ext import commands
 from discord import DMChannel, Game, Embed, Status
-from discord.ext.commands import CommandNotFound, CheckFailure, CommandInvokeError
+from discord.ext.commands import CommandNotFound, CheckFailure, CommandInvokeError, MissingRequiredArgument
 
 from models import ServerOptions, UserOptions
 from main import db
@@ -9,6 +9,7 @@ import os
 import aioschedule as schedule
 
 bot = commands.Bot(command_prefix="!")
+bot.remove_command("help")
 
 
 CJ_USER_ID = 232575009200013313
@@ -59,6 +60,13 @@ def has_admin_role():
     return commands.check(predicate)
 
 
+def not_dm():
+    async def predicate(ctx):
+        return not is_dm(ctx)
+
+    return commands.check(predicate)
+
+
 async def send_message(ctx, title: str, message: str):
     embed = Embed(title=title, description=message, color=0x14c6e6)
     embed.set_footer(text="Made by CJMinecraft")
@@ -92,15 +100,38 @@ class InvalidVersion(Exception):
         return self.__mc
 
 
+async def check_command(ctx, cmd):
+    if len(cmd.checks) > 0:
+        for check in cmd.checks:
+            if not await check(ctx):
+                name = check.__qualname__.split('.<locals>', 1)[0]
+                return name
+    return None
+
+
+async def send_error_for_failed_check(ctx, name: str):
+    if 'not_dm' == name:
+        await send_error(ctx, "Invalid Channel",
+                         f"Cannot perform command `{ctx.message.content}` inside of a DM")
+    elif 'has_admin_role' == name:
+        await send_error(ctx, "Invalid Permissions",
+                         f"Cannot perform command `{ctx.message.content}` without admin privileges")
+
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, CheckFailure):
-        await send_error(ctx, "Error", "Invalid permissions")
+        name = await check_command(ctx, ctx.command)
+        await send_error_for_failed_check(ctx, name)
     elif isinstance(error, CommandNotFound):
         return  # dont want to send message for every bad command
+    elif isinstance(error, MissingRequiredArgument):
+        await send_error(ctx, "Invalid arguments", f"`{error.param.name}` is a required argument for the command `{ctx.command.qualified_name}`\nFor help with this command type `!help {ctx.command.qualified_name}`")
     elif isinstance(error, CommandInvokeError):
         if isinstance(error.original, InvalidVersion):
             await send_error(ctx, "Version Error", f"Please provide a vaild {'Minecraft' if error.original.mc else 'Forge'} version. To see all available versions type `{bot.command_prefix}{'mc' if error.original.mc else 'forge'}versions {error.original.version}`")
+        else:
+            print(error)
     else:
         print(error)
         await send_error(ctx, "Error", "An error occurred")
@@ -110,11 +141,11 @@ async def background_task():
     from asyncio import sleep
     await bot.wait_until_ready()
     await bot.change_presence(status=Status.dnd)
-    await schedule_functions()
+    # await schedule_functions()
     await bot.change_presence(activity=Game(name="play.diversionmc.net"))
-    while True:
-        await schedule.run_pending()
-        await sleep(1)
+    # while True:
+    #     await schedule.run_pending()
+    #     await sleep(1)
 
 
 bot.loop.create_task(background_task())
@@ -124,6 +155,7 @@ from . import reactionroles
 from . import settings
 from . import mappings
 from . import forge
+from . import help
 
 
 def run():

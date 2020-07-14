@@ -6,7 +6,11 @@ from requests import get
 from json import loads
 from collections import OrderedDict
 
-from . import bot, send_error, InvalidVersion
+from . import bot, InvalidVersion
+from logging import getLogger
+
+
+logger = getLogger("forge")
 
 
 @default_representation
@@ -35,8 +39,6 @@ class ForgeVersion:
 
 
 class Versions:
-    SYNCING = False
-
     minecraft_versions = OrderedDict()
     forge_versions_slim = OrderedDict()
     forge_versions = OrderedDict()
@@ -76,7 +78,7 @@ class Versions:
                     cls.latest_minecraft_version = child_versions[-1]
                     first = False
             minecraft_versions[parent_version] = child_versions
-        print("Fetched supported MC versions")
+        logger.info("Fetched supported MC versions")
         promotions = loads(get(cls.FORGE_PROMOTIONS_URL).content)
 
         forge_versions_slim = OrderedDict()
@@ -98,7 +100,7 @@ class Versions:
                     recommended = ForgeVersion(recommended["mcversion"], recommended["version"], src) if recommended is not None else None
                     versions_slim[version] = {"latest": latest, "recommended": recommended}
                 else:
-                    print("Having to webscrape to find latest and recommended versions for MC", version)
+                    logger.debug("Having to webscrape to find latest and recommended versions for MC", version)
 
                 page = get(cls.forge_version_url(version))
                 soup = BeautifulSoup(page.text, "html.parser")
@@ -126,7 +128,7 @@ class Versions:
                 versions[version] = forge_vers
             forge_versions_slim[parent_version] = versions_slim
             forge_versions_[parent_version] = versions
-        print("Fetched forge versions")
+        logger.info("Fetched forge versions")
 
         cls.minecraft_versions = minecraft_versions
         cls.forge_versions_slim = forge_versions_slim
@@ -156,40 +158,30 @@ def resolve_version(version, group: bool = False):
     return version
 
 
-@bot.command(name="mdk")
-async def mdk(ctx, version: str, forge: Optional[str] = None):
-    resolved = resolve_version(version)
-    embed = discord.Embed(title="MDK Download for " + resolved, color=0x2E4460)
+@bot.command(name="mdk", short_doc="Gets the latest and recommended mdk for a version")
+async def mdk(ctx, version: Optional[str] = None, forge: Optional[str] = None):
+    """
+    Gets the latest and recommended mdk for a version
+
+    :param ctx: The context for the command
+    :param version: Optional Minecraft version for the command (default -latest Minecraft version)
+    :param forge: Optional Forge version to get the mdk for (default -latest and recommended mdks)
+    :return:
+    """
+    resolved = resolve_version(version if version is not None else "latest")
     if resolved is None:
         raise InvalidVersion("", True)
         # await send_error(ctx, "Version Error",
         #                  "Please provide a valid Minecraft version. To see all available version type " +
         #                  bot.command_prefix + "mcversions")
         # return
+    embed = discord.Embed(title="MDK Download for " + resolved, color=0x2E4460)
     if forge is not None:
         parent_version = resolve_version(resolved, True)
         if forge not in Versions.forge_versions[parent_version][resolved]:
             raise InvalidVersion(resolved, False)
-            # await send_error(ctx, "Version Error",
-            #                  "Please provide a valid Forge version. To see all available version type " +
-            #                  bot.command_prefix + "forgeversions " + resolved)
         ver = Versions.forge_versions[parent_version][resolved][forge]
         embed.add_field(name=ver.forge_version, value=ver.mdk, inline=True)
-        # versions = await fetch_versions(resolved)
-        # if forge not in versions:
-        #     await send_error(ctx, "Version Error",
-        #                      "Invalid Forge version " + forge + " for Minecraft version " + resolved +
-        #                      ". To see all available forge version type " +
-        #                      bot.command_prefix + "forgeversions " + resolved)
-        #     return
-        # link = await fetch_mdk_forge(resolved, forge)
-        # if link is None:
-        #     await send_error(ctx, "Version Error",
-        #                      "Forge version " + forge + " for Minecraft version " + resolved +
-        #                      " does not seem to have a valid MDK or SRC download.")
-        #     return
-        #
-        # embed.add_field(name=forge, value=link)
     else:
         parent_version = resolve_version(resolved, True)
         forge_version = Versions.forge_versions_slim[parent_version][resolved]
@@ -201,9 +193,16 @@ async def mdk(ctx, version: str, forge: Optional[str] = None):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="forgeversions")
-async def forge_versions(ctx, version: str):
-    resolved = resolve_version(version)
+@bot.command(name="forgeversions", short_doc="Lists all of the forge version for a particular version")
+async def forge_versions(ctx, version: Optional[str] = None):
+    """
+    Lists all of the forge version for a particular version
+
+    :param ctx: The context for the command
+    :param version: Optional Minecraft version to get the forge versions for (default -latest Minecraft version)
+    :return: None
+    """
+    resolved = resolve_version(version if version is not None else "latest")
     # if resolved is None:
     #     # Would print out every version if discord would let us
     #     embed = discord.Embed(title="Forge Versions", color=0x2E4460)
@@ -218,10 +217,6 @@ async def forge_versions(ctx, version: str):
     #     return
     if resolved is None:
         raise InvalidVersion("", True)
-        # await send_error(ctx, "Version Error",
-        #                  "Please provide a valid Minecraft version. To see all available version type " +
-        #                  bot.command_prefix + "mcversions")
-        return
     embed = discord.Embed(title="Forge Versions", color=0x2E4460)
     version_group = resolve_version(resolved, True)
     child_versions = Versions.forge_versions[version_group][resolved]
@@ -233,8 +228,15 @@ async def forge_versions(ctx, version: str):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="mcversions")
+@bot.command(name="mcversions", short_doc="Lists all of the Minecraft versions supported by Forge")
 async def mcversions(ctx, version: Optional[str] = None):
+    """
+    Lists all of the Minecraft versions supported by Forge
+
+    :param ctx: The context for the command
+    :param version: Optional Minecraft group version to use (default -list all versions)
+    :return: None
+    """
     embed = discord.Embed(title="Supported Minecraft Versions by Forge", color=0x2E4460)
     handled = False
     if version is None:
@@ -252,8 +254,15 @@ async def mcversions(ctx, version: Optional[str] = None):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="latestforge")
+@bot.command(name="latestforge", short_doc="Gets the latest and recommended Forge version")
 async def forge_latest(ctx, version: Optional[str] = None):
+    """
+    Gets the latest and recommended Forge version
+
+    :param ctx: The context for the command
+    :param version: Optional Minecraft version to use (default -latest Minecraft version)
+    :return: None
+    """
     if version is None:
         resolved = Versions.latest_minecraft_version
     else:

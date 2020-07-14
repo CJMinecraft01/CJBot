@@ -27,8 +27,15 @@ def resolve_version(version, group: bool = False):
     return version
 
 
-@bot.command(name="latestmcp")
+@bot.command(name="latestmcp", short_doc="Gets the latest mcp version")
 async def latest_mcp(ctx, version: Optional[str] = None):
+    """
+    Get the latest mcp version
+
+    :param ctx: The context for the command
+    :param version: Optional Minecraft version to specify which MCP version to use (default - user's latest mcp version setting)
+    :return: None
+    """
     if version is None:
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version)
@@ -55,8 +62,16 @@ async def not_found(ctx):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="mcp")
+@bot.command(name="mcp", short_doc="Looks up a field, method or parameter within an MCP version")
 async def mappings(ctx, name: str, version: Optional[str] = None):
+    """
+    Looks up a field, method or parameter within an MCP version
+
+    :param ctx: The context for the command
+    :param name: The name to search
+    :param version: Optional version to specify which MCP version to use (default -user's latest mcp version setting)
+    :return: None
+    """
     if version is None:
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
 
@@ -108,8 +123,16 @@ async def mappings(ctx, name: str, version: Optional[str] = None):
             await not_found(ctx)
 
 
-@bot.command(name="mcpf")
+@bot.command(name="mcpf", short_doc="Looks up a field within an MCP version")
 async def find_field(ctx, name: str, version: Optional[str] = None):
+    """
+    Looks up a field within an MCP version
+
+    :param ctx: The context for the command
+    :param name: The name to search
+    :param version: Optional version to specify which MCP version to use (default -user's latest mcp version setting)
+    :return: None
+    """
     if version is None:
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
@@ -131,8 +154,16 @@ async def find_field(ctx, name: str, version: Optional[str] = None):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="mcpm")
+@bot.command(name="mcpm", short_doc="Looks up a method within an MCP version")
 async def find_method(ctx, name: str, version: Optional[str] = None):
+    """
+    Looks up a method within an MCP version
+
+    :param ctx: The context for the command
+    :param name: The name to search
+    :param version: Optional version to specify which MCP version to use (default -user's latest mcp version setting)
+    :return: None
+    """
     if version is None:
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")
@@ -152,8 +183,16 @@ async def find_method(ctx, name: str, version: Optional[str] = None):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="mcpp")
+@bot.command(name="mcpp", short_doc="Looks up a parameter within an MCP version")
 async def find_parameter(ctx, name: str, version: Optional[str] = None):
+    """
+    Looks up a parameter within an MCP version
+
+    :param ctx: The context for the command
+    :param name: The name to search
+    :param version: Optional version to specify which MCP version to use (default -user's latest mcp version setting)
+    :return: None
+    """
     if version is None:
         version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
     version = resolve_version(version if version is not None else "latest")

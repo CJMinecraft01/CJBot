@@ -156,6 +156,7 @@ from . import settings
 from . import mappings
 from . import forge
 from . import help
+from . import autobin
 
 
 def run():

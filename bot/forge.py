@@ -1,10 +1,13 @@
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from utils import default_representation, time
 import discord
 from bs4 import BeautifulSoup
 from requests import get
 from json import loads
 from collections import OrderedDict
+from pkg_resources import parse_version
+import xml.etree.ElementTree as ET
+from io import BytesIO
 
 from . import bot, InvalidVersion
 from logging import getLogger
@@ -46,7 +49,8 @@ class Versions:
     latest_minecraft_version_group = None
 
     MC_VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
-    FORGE_PROMOTIONS_URL = "http://files.minecraftforge.net/maven/net/minecraftforge/forge/promotions.json"
+    FORGE_MAVEN_METADATA = "http://files.minecraftforge.net/maven/net/minecraftforge/forge/maven-metadata.xml"
+    FORGE_PROMOTIONS_URL = "http://files.minecraftforge.net/maven/net/minecraftforge/forge/promotions_slim.json"
     FORGE_URL = "https://files.minecraftforge.net/"
 
     @staticmethod
@@ -57,82 +61,78 @@ class Versions:
     def is_src(cls, files: List[List[str]]) -> bool:
         return len(list(filter(lambda file: file[1] == "src", files))) > 0
 
+    @staticmethod
+    def get_group(version: str):
+        if version.count('.') >= 2:
+            return '.'.join(version.split('.')[:-1])
+        return version
+
+    @staticmethod
+    def parse_forge_version(version: str) -> Tuple[str, str]:
+        versions = version.split("-")
+        return versions[0], versions[1]
+
     @classmethod
     async def fetch_versions(cls):
-        page = get(cls.FORGE_URL)
-        soup = BeautifulSoup(page.text, "html.parser")
+        logger.info("Fetching forge versions")
+        version_manifest = loads(get(cls.MC_VERSIONS_URL).content)
+        minecraft_versions = map(str, sorted([parse_version(version["id"]) for version in version_manifest["versions"] if version["type"] == "release"], reverse=True))
+        ordered_minecraft_versions = OrderedDict()
+
         first = True
-        minecraft_versions = OrderedDict()
-        for version in soup.find_all("li", attrs={"class": "li-version-list"}):
-            parent_version = version.find("a").text.strip()
-            child_versions = []
+        for version in minecraft_versions:
+            group = cls.get_group(version)
             if first:
-                cls.latest_minecraft_version_group = parent_version
-            for ver in version.find_all("li"):
-                a = ver.find("a")
-                if a is not None:
-                    child_versions.append(a.text.strip())
-                else:
-                    child_versions.append(ver.text.strip())
-                if first:
-                    cls.latest_minecraft_version = child_versions[-1]
-                    first = False
-            minecraft_versions[parent_version] = child_versions
-        logger.info("Fetched supported MC versions")
-        promotions = loads(get(cls.FORGE_PROMOTIONS_URL).content)
+                cls.latest_minecraft_version_group = group
+                cls.latest_minecraft_version = version
+                first = False
+            if group in ordered_minecraft_versions.keys():
+                ordered_minecraft_versions[group].append(version)
+            else:
+                ordered_minecraft_versions[group] = [version]
 
-        forge_versions_slim = OrderedDict()
+        logger.info("Fetched minecraft versions")
+
+        maven_manifest = ET.fromstring(get(cls.FORGE_MAVEN_METADATA).content)
+        fg_versions = [cls.parse_forge_version(e.text) for e in maven_manifest.find("versioning").find("versions")]
+
         forge_versions_ = OrderedDict()
+        forge_versions_slim = OrderedDict()
 
-        for parent_version in minecraft_versions.keys():
-            versions_slim = OrderedDict()
-            versions = OrderedDict()
-            for version in minecraft_versions[parent_version]:
-                found_slim = False
-                src = False
-                if f"{version}-latest" in promotions["promos"]:
-                    found_slim = True
-                    latest = promotions["promos"][f"{version}-latest"]
-                    if cls.is_src(latest["files"]):
-                        src = True
-                    latest = ForgeVersion(latest["mcversion"], latest["version"], src)
-                    recommended = promotions["promos"][f"{version}-recommended"] if f"{version}-recommended" in promotions["promos"] else None
-                    recommended = ForgeVersion(recommended["mcversion"], recommended["version"], src) if recommended is not None else None
-                    versions_slim[version] = {"latest": latest, "recommended": recommended}
+        forge_1_8 = parse_version("1.8")
+
+        for mc_version, fg_version in fg_versions:
+            group = cls.get_group(mc_version)
+            version = ForgeVersion(mc_version, fg_version, parse_version(mc_version) < forge_1_8)
+            if group in forge_versions_.keys():
+                if mc_version in forge_versions_[group].keys():
+                    forge_versions_[group][mc_version][fg_version] = version
                 else:
-                    logger.debug("Having to webscrape to find latest and recommended versions for MC", version)
+                    forge_versions_[group][mc_version] = OrderedDict({fg_version: version})
+            else:
+                forge_versions_[group] = OrderedDict({mc_version: OrderedDict({fg_version: version})})
 
-                page = get(cls.forge_version_url(version))
-                soup = BeautifulSoup(page.text, "html.parser")
-                if not found_slim:
-                    downloads = soup.find_all("div", attrs={"class": "download"})
-                    latest = None
-                    recommended = None
-                    for download in downloads:
-                        i = download.find("i")
-                        forge_ver = download.find("small").text.strip()
-                        if version in forge_ver:
-                            forge_ver = forge_ver[len(version) + 3:]
-                        src = download.find("a", {"title": "Src"}) is not None
+        new_mc_versions = OrderedDict()
+        for group in ordered_minecraft_versions.keys():
+            if group in forge_versions_.keys():
+                new_mc_versions[group] = [version for version in ordered_minecraft_versions[group] if version in forge_versions_[group].keys()]
 
-                        ver = ForgeVersion(version, forge_ver, src)
+        promotions = loads(get(cls.FORGE_PROMOTIONS_URL).content)["promos"]
+        for group in new_mc_versions.keys():
+            versions = OrderedDict()
+            for mc_version in new_mc_versions[group]:
+                latest = list(forge_versions_[group][mc_version].values())[-1]
+                recommended = None
+                if f"{mc_version}-recommended" in promotions.keys():
+                    recommended = ForgeVersion(mc_version, promotions[f"{mc_version}-recommended"], parse_version(mc_version) < forge_1_8)
+                versions[mc_version] = {"latest": latest, "recommended": recommended}
+            forge_versions_slim[group] = versions
 
-                        if "promo-latest" in i["class"]:
-                            latest = ver
-                        else:
-                            recommended = ver
-                    versions_slim[version] = {"latest": latest, "recommended": recommended}
-
-                # get all forge versions for this mc version
-                forge_vers = OrderedDict({ver.contents[0].strip(): ForgeVersion(version, ver.contents[0].strip(), src) for ver in soup.find_all("td", attrs={"class": "download-version"})})
-                versions[version] = forge_vers
-            forge_versions_slim[parent_version] = versions_slim
-            forge_versions_[parent_version] = versions
-        logger.info("Fetched forge versions")
-
-        cls.minecraft_versions = minecraft_versions
+        cls.minecraft_versions = new_mc_versions
         cls.forge_versions_slim = forge_versions_slim
         cls.forge_versions = forge_versions_
+
+        logger.info("Fetched forge versions")
 
 
 def resolve_version(version, group: bool = False):

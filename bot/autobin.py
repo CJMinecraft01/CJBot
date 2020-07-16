@@ -13,7 +13,7 @@ def get_file_type_from_name(name: str) -> str:
     return name.split(".")[-1].lower()
 
 
-VALID_FILE_TYPES = ["java", "log"]
+VALID_FILE_TYPES = ["java", "log", "toml", "cfg"]
 
 
 def is_valid_file(name: str) -> bool:

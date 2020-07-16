@@ -13,8 +13,11 @@ def get_file_type_from_name(name: str) -> str:
     return name.split(".")[-1].lower()
 
 
-def is_valid(file_type: str):
-    return file_type == "txt" or file_type == "java" or fi
+VALID_FILE_TYPES = ["java", "log"]
+
+
+def is_valid_file(name: str) -> bool:
+    return name.lower() in VALID_FILE_TYPES
 
 
 api = Pastebin(PASTEBIN_DEV_KEY)
@@ -27,7 +30,7 @@ async def on_message(message):
     if len(message.attachments) > 0:
         urls = ""
         for attachment in message.attachments:
-            if guess_type(attachment.filename)[0] == "text/plain":
+            if "text" in guess_type(attachment.filename)[0] or is_valid_file(get_file_type_from_name(attachment.filename)):
                 url = api.create_paste(api_paste_code=get(attachment.url).content, api_paste_name=attachment.filename, api_paste_private=1, api_paste_expire_date="1M")
                 urls += url + " "
         if len(urls) > 0:

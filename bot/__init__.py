@@ -144,8 +144,10 @@ async def background_task():
     await schedule_functions()
     await bot.change_presence(activity=Game(name="play.diversionmc.net"))
     while True:
+        await bot.change_presence(status=Status.dnd)
         await schedule.run_pending()
         await sleep(0.1)
+        await bot.change_presence(activity=Game(name="play.diversionmc.net"))
 
 
 bot.loop.create_task(background_task())

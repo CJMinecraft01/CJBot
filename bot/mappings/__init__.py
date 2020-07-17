@@ -70,6 +70,8 @@ def search_all(name: str, version: str):
         yield result
     for result in MCPDownloader.database[version].search_parameters(name):
         yield result
+    for result in MCPDownloader.database[version].search_classes(name):
+        yield result
 
 
 @bot.command(name="mcp", short_doc="Looks up a field, method or parameter within an MCP version")
@@ -233,3 +235,23 @@ async def find_parameter(ctx, name: str, version: Optional[str] = None):
     #     return
     # embed.set_footer(text="Made by CJMinecraft")
     # await ctx.send(embed=embed)
+
+
+@bot.command(name="mcpc", short_doc="Looks up a class within an MCP version")
+async def find_class(ctx, name: str, version: Optional[str] = None):
+    """
+    Looks up a class within an MCP version
+
+    :param ctx: The context for the command
+    :param name: The name to search
+    :param version: Optional version to specify which MCP version to use (default - user's latest mcp version setting)
+    :return: None
+    """
+    if version is None:
+        version = get_user_options_from_context(ctx).DefaultMCPMinecraftVersion
+    version = resolve_version(version if version is not None else "latest")
+    if version is None:
+        raise InvalidVersion("", True)
+
+    page = Page(5, MCPDownloader.database[version].search_classes(name))
+    await page.show(ctx, title=f"List of MCP Mappings for {version}", colour=0x2E4460)

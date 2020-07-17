@@ -322,10 +322,12 @@ class Class(Mapping):
     def constructors(self):
         return self.__constructors
 
+    def title(self) -> str:
+        return self.intermediate_name
+
     def to_message(self) -> str:
         return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
                f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
-               f"__Side__: `{self.side.name}`\n" \
                f"__AT__: `public {self.intermediate_name.replace('/', '.')} # {self.name}`"
 
 
@@ -371,19 +373,26 @@ class MappingDatabase:
                 for r in result:
                     yield r
 
-    def search_method(self, search: str) -> Tuple[Method, Class]:
+    def search_method(self, search: str) -> Method:
         for clazz in self.__classes:
             result = clazz.search_method(search)
             if len(result) > 0:
                 for r in result:
                     yield r
 
-    def search_parameters(self, search: str) -> Tuple[Parameter, Method]:
+    def search_parameters(self, search: str) -> Parameter:
         for clazz in self.__classes:
             result = clazz.search_parameters(search)
             if len(result) > 0:
                 for r in result:
                     yield r
+
+    def search_classes(self, search: str) -> Class:
+        for clazz in self.__classes:
+            if clazz.name is not None and search in clazz.name:
+                yield clazz
+            elif clazz.intermediate_name is not None and search in clazz.intermediate_name:
+                yield clazz
 
 
 class MCPVersions:

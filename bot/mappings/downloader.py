@@ -114,7 +114,7 @@ class Side(Enum):
 
 
 @default_representation
-@serializable
+@serializable(short_name="P")
 class Parameter(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
@@ -140,7 +140,7 @@ class Parameter(Mapping):
 
 
 @default_representation
-@serializable
+@serializable(short_name="M")
 class Method(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
@@ -208,7 +208,7 @@ class Method(Mapping):
 
 
 @default_representation
-@serializable
+@serializable(short_name="F")
 class Field(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
@@ -237,7 +237,7 @@ class Field(Mapping):
 
 
 @default_representation
-@serializable
+@serializable(short_name="C")
 class Class(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
@@ -342,13 +342,15 @@ class MappingDatabase:
 
     def save(self):
         self.__path.write_text(
-            Json.dumps({"mc_version": self.__mc_version, "snapshot": self.__snapshot, "classes": self.__classes}))
+            Json.dumps({"mc_version": self.__mc_version, "snapshot": self.__snapshot, "classes": self.__classes}, separators=(',', ':')))
 
     def load(self):
         data = Json.loads(self.__path.read_text())
         self.__mc_version = data["mc_version"]
         self.__snapshot = data["snapshot"]
         self.__classes = data["classes"]
+        # temp try to shrink file size
+        # self.save()
 
     @property
     def mc_version(self):
@@ -548,7 +550,7 @@ class MCPDownloader(MappingDownloader):
                         "mc_version": str(version.mc_version),
                         "snapshot": latest_snapshot.version,
                         "tsrg": version.mc_version >= new_forge
-                    }))
+                    }, separators=(',', ':')))
 
                     logger.info("Updated mappings for %s", version.mc_version)
                 except Exception as e:

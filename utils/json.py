@@ -7,12 +7,13 @@ __all__ = ['serializable', 'JsonSerializable', 'Json']
 from json import JSONEncoder, loads, dumps, load, dump
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Type, Any, Optional
+from bidict import bidict
 
 
-_serializers: Dict[str, Type['JsonSerializable']] = {}  # Stores a list of serializable object classes
+_serializers = bidict({})  # Stores a list of serializable object classes
 
 
-def serializable(clazz_: Optional[Type] = None, class_names: Optional[List[str]] = None) -> Type:
+def serializable(clazz_: Optional[Type] = None, class_names: Optional[List[str]] = None, short_name: Optional[str] = None) -> Type:
     """
     Mark a class as something which can be serialised
     Can be used like a decorator.
@@ -30,6 +31,7 @@ def serializable(clazz_: Optional[Type] = None, class_names: Optional[List[str]]
 
     :param clazz_: The class to register as something which can be serialised
     :param class_names: The names of sub classes which are also serialisable
+    :param short_name: The shorthand name for the class (to reduce file sizes)
     :return: The provided class
     """
     def wrapper(clazz: Type) -> Type:
@@ -45,7 +47,7 @@ def serializable(clazz_: Optional[Type] = None, class_names: Optional[List[str]]
         if not issubclass(clazz, JsonSerializable):
             raise AttributeError("Cannot mark class as json serializable if it isn't a subclass of JsonSerializable")
         if class_names is None:
-            _serializers[clazz_.__name__] = clazz
+            _serializers[short_name if short_name is not None else clazz_.__name__] = clazz
         else:
             for name in class_names:
                 _serializers[name] = clazz
@@ -92,7 +94,7 @@ class _JsonEncoder(JSONEncoder):
         :return: The converted object
         """
         if issubclass(type(o), JsonSerializable):
-            return {f"__{o.__class__.__name__}__": o.serialize()}
+            return {f"_{_serializers.inverse[o.__class__]}_": o.serialize()}
         return super(_JsonEncoder, self).default(o)
 
 
@@ -104,8 +106,14 @@ def _deserialize(o: Dict[str, Any]):
     :return: The deserialized form of the object
     """
     for name, serializer in _serializers.items():
+        if f"_{name}_" in o.keys():
+            return serializer.deserialize(o[f"_{name}_"])
+        if f"_{serializer.__name__}_" in o.keys():
+            return serializer.deserialize(o[f"_{serializer.__name__}_"])
         if f"__{name}__" in o.keys():
             return serializer.deserialize(o[f"__{name}__"])
+        if f"__{serializer.__name__}__" in o.keys():
+            return serializer.deserialize(o[f"__{serializer.__name__}__"])
     return o
 
 

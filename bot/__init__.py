@@ -82,6 +82,7 @@ async def send_error(ctx, title: str, message: str):
 @bot.event
 async def on_ready():
     print("Bot is ready")
+    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
 
 
 class InvalidVersion(Exception):
@@ -140,14 +141,10 @@ async def on_command_error(ctx, error):
 async def background_task():
     from asyncio import sleep
     await bot.wait_until_ready()
-    await bot.change_presence(status=Status.dnd)
     await schedule_functions()
-    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
     while True:
-        await bot.change_presence(status=Status.dnd)
         await schedule.run_pending()
         await sleep(0.1)
-        await bot.change_presence(activity=Game(name="play.diversionmc.net"))
 
 
 bot.loop.create_task(background_task())

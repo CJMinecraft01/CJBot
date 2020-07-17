@@ -140,6 +140,8 @@ async def remove_roles(user, guild_id, role_id):
 
 @bot.event
 async def on_raw_reaction_add(payload):
+    if payload.guild_id is None:
+        return
     if not payload.member.bot:
         rr = reaction_role_from_payload(payload)
         if rr is not None:
@@ -151,6 +153,8 @@ async def on_raw_reaction_add(payload):
 
 @bot.event
 async def on_raw_reaction_remove(payload):
+    if payload.guild_id is None:
+        return
     user = bot.get_guild(payload.guild_id).get_member(payload.user_id)
     if not user.bot:
         rr = reaction_role_from_payload(payload)

@@ -7,6 +7,8 @@ from datetime import date
 from pathlib import Path
 from csv import DictReader
 from zipfile import ZipFile
+
+from bot.page import PageEntry
 from sync import sync
 from utils import MASTER_PATH, default_representation, time
 from utils.json import Json, JsonSerializable, serializable
@@ -62,16 +64,7 @@ class MappingType(Enum):
 
 @default_representation
 @serializable
-class Mapping(JsonSerializable):
-
-    def serialize(self) -> Dict[str, Any]:
-        return {"mapping_type": self.__mapping_type.value, "original_name": self.__original_name,
-                "intermediate_name": self.__intermediate_name, "name": self.__name, "description": self.__description}
-
-    @staticmethod
-    def deserialize(o: Dict[str, Any]):
-        return Mapping(MappingType(o["mapping_type"]), o["original_name"], o["intermediate_name"], o["name"],
-                       o["description"])
+class Mapping(JsonSerializable, PageEntry, metaclass=ABCMeta):
 
     def __init__(self, mapping_type: MappingType, original_name: Optional[str], intermediate_name: str,
                  name: Optional[str] = None, description: Optional[str] = None) -> None:
@@ -80,6 +73,15 @@ class Mapping(JsonSerializable):
         self.__intermediate_name = intermediate_name
         self.__name = name
         self.__description = description if description is None or len(description) > 0 else None
+        self.__parent = None
+
+    @property
+    def parent(self):
+        return self.__parent
+
+    @parent.setter
+    def parent(self, value: 'Mapping'):
+        self.__parent = value
 
     @property
     def mapping_type(self):
@@ -100,6 +102,9 @@ class Mapping(JsonSerializable):
     @property
     def description(self):
         return self.__description
+
+    def title(self) -> str:
+        return self.parent.intermediate_name
 
 
 class Side(Enum):
@@ -161,6 +166,7 @@ class Method(Mapping):
         self.__parameters = []
 
     def add_parameter(self, parameter: Parameter):
+        parameter.parent = self
         self.__parameters.append(parameter)
 
     @property
@@ -179,7 +185,7 @@ class Method(Mapping):
     def parameters(self):
         return self.__parameters
 
-    def search_parameter(self, search: str):
+    def search_parameter(self, search: str) -> List[Parameter]:
         results = []
         for param in self.__parameters:
             if param.name == search:
@@ -188,13 +194,17 @@ class Method(Mapping):
                 results.append(param)
         return results
 
-    def to_message(self, clazz: 'Class') -> str:
+    def to_message(self) -> str:
         params = ', '.join(map(lambda param: param.to_message(), self.parameters)) if len(self.parameters) > 0 else "None"
         return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
                f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
                f"__Side__: `{self.side.name}`\n" \
-               f"__AT__: `public {clazz.intermediate_name.replace('/', '.')} {self.intermediate_name}{self.signature} # {self.name}`\n" \
+               f"__AT__: `public {self.parent.intermediate_name.replace('/', '.')} {self.intermediate_name}{self.signature} # {self.name}`\n" \
                f"__Parameters__: {params}"
+
+    def title(self) -> str:
+        name = self.name if self.name is not None else self.intermediate_name
+        return super().title() + "#" + name
 
 
 @default_representation
@@ -219,11 +229,11 @@ class Field(Mapping):
     def side(self):
         return self.__side
 
-    def to_message(self, clazz: 'Class') -> str:
+    def to_message(self) -> str:
         return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
                f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
                f"__Side__: `{self.side.name}`\n" \
-               f"__AT__: `public {clazz.intermediate_name.replace('/', '.')} {self.intermediate_name} # {self.name}`"
+               f"__AT__: `public {self.parent.intermediate_name.replace('/', '.')} {self.intermediate_name} # {self.name}`"
 
 
 @default_representation
@@ -256,40 +266,44 @@ class Class(Mapping):
         self.__methods = []
         self.__constructors = []
 
-    def add_field(self, field: Mapping):
+    def add_field(self, field: Field):
+        field.parent = self
         self.__fields.append(field)
 
     def add_method(self, method: Method):
+        method.parent = self
         self.__methods.append(method)
 
     def add_child_class(self, clazz: 'Class'):
+        clazz.parent = self
         self.__child_classes.append(clazz)
 
     def add_constructor(self, constructor: Method):
+        constructor.parent = self
         self.__constructors.append(constructor)
 
-    def search_field(self, search: str) -> List[Tuple[Field, 'Class']]:
+    def search_field(self, search: str) -> List[Field]:
         results = []
         for field in self.__fields:
             if field.name == search:
-                results.append((field, self))
+                results.append(field)
             elif field.intermediate_name == search:
-                results.append((field, self))
+                results.append(field)
         return results
 
-    def search_method(self, search: str) -> List[Tuple[Method, 'Class']]:
+    def search_method(self, search: str) -> List[Method]:
         results = []
         for method in self.__methods:
             if method.name == search:
-                results.append((method, self))
+                results.append(method)
             elif method.intermediate_name == search:
-                results.append((method, self))
+                results.append(method)
         return results
 
-    def search_parameters(self, search: str) -> List[Tuple[Parameter, Method]]:
+    def search_parameters(self, search: str) -> List[Parameter]:
         results = []
         for method in self.__methods:
-            results.extend([(param, method) for param in method.search_parameter(search)])
+            results.extend(method.search_parameter(search))
         return results
 
     @property
@@ -307,6 +321,12 @@ class Class(Mapping):
     @property
     def constructors(self):
         return self.__constructors
+
+    def to_message(self) -> str:
+        return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
+               f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
+               f"__Side__: `{self.side.name}`\n" \
+               f"__AT__: `public {self.intermediate_name.replace('/', '.')} # {self.name}`"
 
 
 class MappingDatabase:
@@ -342,7 +362,7 @@ class MappingDatabase:
     def classes(self):
         return self.__classes
 
-    def search_field(self, search: str) -> Tuple[Field, Class]:
+    def search_field(self, search: str) -> Field:
         for clazz in self.__classes:
             result = clazz.search_field(search)
             if len(result) > 0:

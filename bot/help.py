@@ -3,6 +3,7 @@ from typing import Optional
 from discord import Embed, Colour
 from string import whitespace
 from re import compile
+from .page import PageEntry, Page
 
 
 COMMAND_FROM_DESCRIPTION = compile(r":param (.+): (.+)")
@@ -35,6 +36,25 @@ def get_command_signature(command):
     return '%s %s' % (alias, command.signature)
 
 
+class Cmd(PageEntry):
+
+    def __init__(self, name: str, usage: str, description: str) -> None:
+        self.__name = name
+        self.__usage = usage
+        self.__description = description
+
+    def title(self) -> str:
+        return f"{bot.command_prefix}{self.__name}"
+
+    def to_message(self) -> str:
+        return f"__Usage__: `{bot.command_prefix}{self.__usage}`\n__Description__: {self.__description if len(self.__description) > 0 else 'None'}"
+
+
+def command_generator(commands):
+    for command in commands:
+        yield command
+
+
 @bot.command(name="help", short_doc="Shows this message")
 async def help_command(ctx, command: Optional[str] = None):
     """
@@ -45,18 +65,22 @@ async def help_command(ctx, command: Optional[str] = None):
     :return: None
     """
     if command is None:
-        embed = Embed(title="Help", colour=Colour.red())
+        # embed = Embed(title="Help", colour=Colour.red())
+        commands = []
         for cmd in bot.walk_commands():
             if await check_command(ctx, cmd):
                 continue
-            text = f"__Usage__: `{bot.command_prefix}{get_command_signature(cmd)}`\n"
-
-            text += "__Description__: " + cmd.short_doc if len(cmd.short_doc) > 0 else "None" + "\n"
-
-            embed.add_field(name=f"{bot.command_prefix}{cmd.name}", value=text, inline=False)
+            commands.append(Cmd(cmd.name, get_command_signature(cmd), cmd.short_doc))
+            # text = f"__Usage__: `{bot.command_prefix}{get_command_signature(cmd)}`\n"
+            #
+            # text += "__Description__: " + cmd.short_doc if len(cmd.short_doc) > 0 else "None" + "\n"
+            #
+            # embed.add_field(name=f"{bot.command_prefix}{cmd.name}", value=text, inline=False)
             # embed.add_field(name="Description", value=help_text, inline=True)
-        embed.set_footer(text="Made by CJMinecraft")
-        await ctx.send(embed=embed)
+        # embed.set_footer(text="Made by CJMinecraft")
+        # await ctx.send(embed=embed)
+        page = Page(5, command_generator(commands))
+        await page.show(ctx, title="Help", colour=Colour.red())
     else:
         cmd = bot.get_command(command)
         if cmd is None:

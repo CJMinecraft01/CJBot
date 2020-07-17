@@ -2,6 +2,7 @@ from typing import Optional
 from bot import bot, get_user_options_from_context, InvalidVersion
 from discord import Embed
 from .downloader import MCPDownloader
+from bot.page import Page
 
 
 def resolve_version(version, group: bool = False):
@@ -62,6 +63,15 @@ async def not_found(ctx):
     await ctx.send(embed=embed)
 
 
+def search_all(name: str, version: str):
+    for result in MCPDownloader.database[version].search_field(name):
+        yield result
+    for result in MCPDownloader.database[version].search_method(name):
+        yield result
+    for result in MCPDownloader.database[version].search_parameters(name):
+        yield result
+
+
 @bot.command(name="mcp", short_doc="Looks up a field, method or parameter within an MCP version")
 async def mappings(ctx, name: str, version: Optional[str] = None):
     """
@@ -85,42 +95,46 @@ async def mappings(ctx, name: str, version: Optional[str] = None):
         version = resolve_version(version if version is not None else "latest")
         if version is None:
             raise InvalidVersion("", True)
-        found_field = False
 
-        embed = Embed(title="List of MCP Mappings", color=0x2E4460)
-        for field, clazz in MCPDownloader.database[version].search_field(name):
-            found_field = True
-            embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=field.to_message(clazz), inline=False)
+        page = Page(5, search_all(name, version))
+        await page.show(ctx, title=f"List of MCP Mappings for {version}", colour=0x2E4460)
 
-        embed.set_footer(text="Made by CJMinecraft")
-        if found_field:
-            await ctx.send(embed=embed)
-
-        found_method = False
-
-        embed = Embed(title="List of MCP Mappings", color=0x2E4460)
-        for method, clazz in MCPDownloader.database[version].search_method(name):
-            found_method = True
-            embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=method.to_message(clazz), inline=False)
-
-        embed.set_footer(text="Made by CJMinecraft")
-        if found_method:
-            await ctx.send(embed=embed)
-
-        found_param = False
-
-        embed = Embed(title="List of MCP Mappings", color=0x2E4460)
-        for parameter, method in MCPDownloader.database[version].search_parameters(name):
-            found_param = True
-            embed.add_field(name=f"{version}: {method.name if method.name is not None else method.intermediate_name}",
-                            value=parameter.to_message(), inline=False)
-
-        embed.set_footer(text="Made by CJMinecraft")
-        if found_param:
-            await ctx.send(embed=embed)
-
-        if not (found_field or found_method or found_param):
-            await not_found(ctx)
+        # found_field = False
+        #
+        # embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+        # for field, clazz in MCPDownloader.database[version].search_field(name):
+        #     found_field = True
+        #     embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=field.to_message(clazz), inline=False)
+        #
+        # embed.set_footer(text="Made by CJMinecraft")
+        # if found_field:
+        #     await ctx.send(embed=embed)
+        #
+        # found_method = False
+        #
+        # embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+        # for method, clazz in MCPDownloader.database[version].search_method(name):
+        #     found_method = True
+        #     embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=method.to_message(clazz), inline=False)
+        #
+        # embed.set_footer(text="Made by CJMinecraft")
+        # if found_method:
+        #     await ctx.send(embed=embed)
+        #
+        # found_param = False
+        #
+        # embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+        # for parameter, method in MCPDownloader.database[version].search_parameters(name):
+        #     found_param = True
+        #     embed.add_field(name=f"{version}: {method.name if method.name is not None else method.intermediate_name}",
+        #                     value=parameter.to_message(), inline=False)
+        #
+        # embed.set_footer(text="Made by CJMinecraft")
+        # if found_param:
+        #     await ctx.send(embed=embed)
+        #
+        # if not (found_field or found_method or found_param):
+        #     await not_found(ctx)
 
 
 @bot.command(name="mcpf", short_doc="Looks up a field within an MCP version")
@@ -139,19 +153,22 @@ async def find_field(ctx, name: str, version: Optional[str] = None):
     if version is None:
         raise InvalidVersion("", True)
 
-    found = False
+    page = Page(5, MCPDownloader.database[version].search_field(name))
+    await page.show(ctx, title=f"List of MCP Mappings for {version}", colour=0x2E4460)
 
-    embed = Embed(title="List of MCP Mappings", color=0x2E4460)
-    for field, clazz in MCPDownloader.database[version].search_field(name):
-        found = True
-        embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=field.to_message(clazz), inline=False)
-
-    if not found:
-        await not_found(ctx)
-        return
-
-    embed.set_footer(text="Made by CJMinecraft")
-    await ctx.send(embed=embed)
+    # found = False
+    #
+    # embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+    # for field, clazz in MCPDownloader.database[version].search_field(name):
+    #     found = True
+    #     embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=field.to_message(clazz), inline=False)
+    #
+    # if not found:
+    #     await not_found(ctx)
+    #     return
+    #
+    # embed.set_footer(text="Made by CJMinecraft")
+    # await ctx.send(embed=embed)
 
 
 @bot.command(name="mcpm", short_doc="Looks up a method within an MCP version")
@@ -169,18 +186,22 @@ async def find_method(ctx, name: str, version: Optional[str] = None):
     version = resolve_version(version if version is not None else "latest")
     if version is None:
         raise InvalidVersion("", True)
-    found = False
-    embed = Embed(title="List of MCP Mappings", color=0x2E4460)
-    for method, clazz in MCPDownloader.database[version].search_method(name):
-        found = True
-        embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=method.to_message(clazz), inline=False)
 
-    if not found:
-        await not_found(ctx)
-        return
+    page = Page(5, MCPDownloader.database[version].search_method(name))
+    await page.show(ctx, title=f"List of MCP Mappings for {version}", colour=0x2E4460)
 
-    embed.set_footer(text="Made by CJMinecraft")
-    await ctx.send(embed=embed)
+    # found = False
+    # embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+    # for method, clazz in MCPDownloader.database[version].search_method(name):
+    #     found = True
+    #     embed.add_field(name=f"{version}: {clazz.intermediate_name}", value=method.to_message(clazz), inline=False)
+    #
+    # if not found:
+    #     await not_found(ctx)
+    #     return
+    #
+    # embed.set_footer(text="Made by CJMinecraft")
+    # await ctx.send(embed=embed)
 
 
 @bot.command(name="mcpp", short_doc="Looks up a parameter within an MCP version")
@@ -198,13 +219,17 @@ async def find_parameter(ctx, name: str, version: Optional[str] = None):
     version = resolve_version(version if version is not None else "latest")
     if version is None:
         raise InvalidVersion("", True)
-    embed = Embed(title="List of MCP Mappings", color=0x2E4460)
-    found = False
-    for parameter, method in MCPDownloader.database[version].search_parameters(name):
-        found = True
-        embed.add_field(name=f"{version}: {method.name if method.name is not None else method.intermediate_name}", value=parameter.to_message(), inline=False)
-    if not found:
-        await not_found(ctx)
-        return
-    embed.set_footer(text="Made by CJMinecraft")
-    await ctx.send(embed=embed)
+
+    page = Page(5, MCPDownloader.database[version].search_parameters(name))
+    await page.show(ctx, title=f"List of MCP Mappings for {version}", colour=0x2E4460)
+
+    # embed = Embed(title="List of MCP Mappings", color=0x2E4460)
+    # found = False
+    # for parameter, method in MCPDownloader.database[version].search_parameters(name):
+    #     found = True
+    #     embed.add_field(name=f"{version}: {method.name if method.name is not None else method.intermediate_name}", value=parameter.to_message(), inline=False)
+    # if not found:
+    #     await not_found(ctx)
+    #     return
+    # embed.set_footer(text="Made by CJMinecraft")
+    # await ctx.send(embed=embed)

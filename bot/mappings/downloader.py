@@ -14,11 +14,12 @@ from utils import MASTER_PATH, default_representation, time
 from utils.json import Json, JsonSerializable, serializable
 from requests import get
 from io import BytesIO
-from os import scandir
+from os import scandir, getenv
 from re import compile
 from enum import Enum, auto
 from shutil import rmtree
 from logging import getLogger
+from fuzzywuzzy import fuzz
 
 
 logger = getLogger("mcp")
@@ -60,6 +61,23 @@ class MappingType(Enum):
         obj.csv_file_name = csv_file_name
         obj.parent = parent
         return obj
+
+
+LENIENCY = getenv("LENIENCY", 75)
+
+
+def matches(name: Optional[str], match: str):
+    if name is None:
+        return False
+    if '/' in name:
+        names = name.split('/')
+        if fuzz.ratio(names[-1], match) > LENIENCY:
+            return True
+        total = 0
+        for n in names:
+            total += fuzz.ratio(n, match)
+        return total > LENIENCY * len(names)
+    return fuzz.ratio(name, match) > LENIENCY
 
 
 @default_representation
@@ -188,9 +206,9 @@ class Method(Mapping):
     def search_parameter(self, search: str) -> List[Parameter]:
         results = []
         for param in self.__parameters:
-            if param.name == search:
+            if matches(param.name, search):
                 results.append(param)
-            elif param.intermediate_name == search:
+            elif matches(param.intermediate_name, search):
                 results.append(param)
         return results
 
@@ -198,7 +216,7 @@ class Method(Mapping):
         params = ', '.join(map(lambda param: param.to_message(), self.parameters)) if len(self.parameters) > 0 else "None"
         return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
                f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
-               f"__Side__: `{self.side.name}`\n" \
+               f"__Physical Side__: `{self.side.name}`\n" \
                f"__AT__: `public {self.parent.intermediate_name.replace('/', '.')} {self.intermediate_name}{self.signature} # {self.name}`\n" \
                f"__Parameters__: {params}"
 
@@ -232,7 +250,7 @@ class Field(Mapping):
     def to_message(self) -> str:
         return f"__Name__: `{self.original_name}` -> `{self.intermediate_name}` -> `{self.name}`\n" \
                f"__Description__: `{self.description if self.description is not None else 'None'}`\n" \
-               f"__Side__: `{self.side.name}`\n" \
+               f"__Physical Side__: `{self.side.name}`\n" \
                f"__AT__: `public {self.parent.intermediate_name.replace('/', '.')} {self.intermediate_name} # {self.name}`"
 
 
@@ -285,18 +303,18 @@ class Class(Mapping):
     def search_field(self, search: str) -> List[Field]:
         results = []
         for field in self.__fields:
-            if field.name == search:
+            if matches(field.name, search):
                 results.append(field)
-            elif field.intermediate_name == search:
+            elif matches(field.intermediate_name, search):
                 results.append(field)
         return results
 
     def search_method(self, search: str) -> List[Method]:
         results = []
         for method in self.__methods:
-            if method.name == search:
+            if matches(method.name, search):
                 results.append(method)
-            elif method.intermediate_name == search:
+            elif matches(method.intermediate_name, search):
                 results.append(method)
         return results
 
@@ -389,9 +407,9 @@ class MappingDatabase:
 
     def search_classes(self, search: str) -> Class:
         for clazz in self.__classes:
-            if clazz.name is not None and search in clazz.name:
+            if matches(clazz.name, search):
                 yield clazz
-            elif clazz.intermediate_name is not None and search in clazz.intermediate_name:
+            elif matches(clazz.intermediate_name, search):
                 yield clazz
 
 

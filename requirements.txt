@@ -7,3 +7,5 @@ bs4
 aioschedule
 pbwrap
 bidict
+fuzzywuzzy
+python-Levenshtein-wheels

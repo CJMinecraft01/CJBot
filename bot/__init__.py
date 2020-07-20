@@ -1,5 +1,5 @@
 from discord.ext import commands
-from discord import DMChannel, Game, Embed, Status
+from discord import DMChannel, Game, Embed, Status, Activity
 from discord.ext.commands import CommandNotFound, CheckFailure, CommandInvokeError, MissingRequiredArgument
 
 from models import ServerOptions, UserOptions
@@ -82,7 +82,10 @@ async def send_error(ctx, title: str, message: str):
 @bot.event
 async def on_ready():
     print("Bot is ready")
-    await bot.change_presence(activity=Game(name="play.diversionmc.net"))
+    if os.getenv("TESTING", "False") == "True":
+        await bot.change_presence(status=Status.idle, activity=Activity(name="Testing"))
+    else:
+        await bot.change_presence(activity=Game(name="play.diversionmc.net"))
 
 
 class InvalidVersion(Exception):

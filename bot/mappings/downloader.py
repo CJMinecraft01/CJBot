@@ -118,6 +118,10 @@ class Mapping(JsonSerializable, PageEntry, metaclass=ABCMeta):
     def intermediate_name(self):
         return self.__intermediate_name
 
+    @intermediate_name.setter
+    def intermediate_name(self, value: str):
+        self.__intermediate_name = value
+
     @property
     def name(self):
         return self.__name
@@ -357,15 +361,15 @@ class Class(Mapping):
         return self.__child_classes
 
     @property
-    def fields(self):
+    def fields(self) -> List[Field]:
         return self.__fields
 
     @property
-    def methods(self):
+    def methods(self) -> List[Method]:
         return self.__methods
 
     @property
-    def constructors(self):
+    def constructors(self) -> List[Method]:
         return self.__constructors
 
     def title(self) -> str:
@@ -401,15 +405,15 @@ class MappingDatabase:
         # self.save()
 
     @property
-    def mc_version(self):
+    def mc_version(self) -> str:
         return self.__mc_version
 
     @property
-    def snapshot(self):
+    def snapshot(self) -> str:
         return self.__snapshot
 
     @property
-    def classes(self):
+    def classes(self) -> List[Class]:
         return self.__classes
 
     def search_field(self, search: str) -> Field:
@@ -584,8 +588,10 @@ class MCPDownloader(MappingDownloader):
                 latest = False
 
             meta_file = path / "meta.json"
+            found = True
             if not meta_file.exists():
                 latest = False
+                found = False
             else:
                 latest = loads(meta_file.read_text())["snapshot"] == latest_snapshot.version
 
@@ -597,9 +603,10 @@ class MCPDownloader(MappingDownloader):
 
                     url = cls.TSRGS_URL if version.mc_version >= new_forge else cls.SRGS_URL
 
-                    zip_file = ZipFile(BytesIO(
-                        get(url(version.mc_version), stream=True).content))
-                    zip_file.extractall(path=path / "srg")
+                    if not found:
+                        zip_file = ZipFile(BytesIO(
+                            get(url(version.mc_version), stream=True).content))
+                        zip_file.extractall(path=path / "srg")
 
                     meta_file.write_text(data=dumps({
                         "mc_version": str(version.mc_version),
@@ -643,8 +650,89 @@ class MCPDownloader(MappingDownloader):
                     logger.info(f"Found up to date database for MC {db.mc_version} snapshot {db.snapshot}")
                     continue
                 else:
-                    db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
+                    new_db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
                     logger.info(f"Detected out of date database for MC {db.mc_version} snapshot {db.snapshot}")
+                    # update MCP, don't need to download SRGs
+
+                    mcp_folder = path / "mcp"
+
+                    fields_file = mcp_folder / "fields.csv"
+                    fields = DictReader(fields_file.open(mode="r"))
+                    fields = {field["searge"]: field for field in fields}
+
+                    methods_file = mcp_folder / "methods.csv"
+                    methods = DictReader(methods_file.open(mode="r"))
+                    methods = {method["searge"]: method for method in methods}
+
+                    params_file = mcp_folder / "params.csv"
+                    params = DictReader(params_file.open(mode="r"))
+                    temp = {}
+                    constructor_params = {}
+                    for param in params:
+                        match = cls.SRG_PARAM.match(param["param"])
+                        if match:
+                            method_id = match.group(1)
+                            param_index = match.group(2)
+                            if method_id in temp.keys():
+                                temp[method_id][param_index] = param
+                            else:
+                                temp[method_id] = {param_index: param}
+                        else:
+                            # Typically these will be constructor parameters
+                            match = cls.SRG_CONSTRUCTOR_PARAM.match(param["param"])
+                            if match:
+                                method_id = match.group(1)
+                                param_index = match.group(2)
+                                if method_id in constructor_params.keys():
+                                    constructor_params[method_id][param_index] = param
+                                else:
+                                    constructor_params[method_id] = {param_index: param}
+
+                    params = temp
+
+                    for clazz in db.classes:
+                        new_clazz = Class(clazz.original_name, clazz.intermediate_name, clazz.name, clazz.description)
+                        for method in clazz.methods:
+                            if method.intermediate_name in methods.keys():
+                                mcp_method = methods[method.intermediate_name]
+                                new_method = Method(method.original_name, method.intermediate_name, method.signature, mcp_method["name"], mcp_method["desc"], Side(int(mcp_method["side"]) + 1), method.static)
+                            else:
+                                new_method = Method(method.original_name, method.intermediate_name, method.signature,
+                                                    method.name, method.description,
+                                                    method.side, method.static)
+                            match = cls.SRG_METHOD_ID.match(method.intermediate_name)
+                            if match is not None:
+                                method_id = match.group(1)
+                                if method_id in params.keys():
+                                    for param in params[method_id].values():
+                                        new_method.add_parameter(Parameter(None, param["param"], param["name"], None,
+                                                                  Side(int(param["side"]) + 1)))
+                            new_clazz.add_method(method)
+
+                        for field in clazz.fields:
+                            if field.intermediate_name in fields.keys():
+                                mcp_field = fields[field.intermediate_name]
+                                new_clazz.add_field(Field(field.original_name, field.intermediate_name, mcp_field["name"], mcp_field["desc"], Side(int(mcp_field["side"]) + 1)))
+                            else:
+                                new_clazz.add_field(field)
+
+                        for constructor in clazz.constructors:
+                            new_clazz.add_constructor(constructor)
+                            # new_constructor = Method(constructor.original_name, constructor.intermediate_name, constructor.signature,
+                            #                         constructor.name, constructor.description,
+                            #                         constructor.side, constructor.static)
+                            #
+                            # if constructor["method_id"] in constructor_params.keys():
+                            #     for param in constructor_params[constructor["method_id"]].values():
+                            #         c.add_parameter(Parameter(None, param["param"], param["name"], None,
+                            #                                   Side(int(param["side"]) + 1)))
+                            # clazz.add_constructor(c)
+                        new_db.add_class(new_clazz)
+                    cls.database[meta["mc_version"]] = new_db
+                    new_db.save()
+                    rmtree(mcp_folder.as_posix())
+                    logger.info(f"Updated database for MC {new_db.mc_version} snapshot {new_db.snapshot}")
+                    continue
             else:
                 db = MappingDatabase(db_file, meta["mc_version"], meta["snapshot"])
                 logger.info(f"Couldn't find database for MC {db.mc_version} snapshot {db.snapshot}")
@@ -714,7 +802,7 @@ class MCPDownloader(MappingDownloader):
 
                         if clazz.intermediate_name in constructors.keys():
                             for constructor in constructors[clazz.intermediate_name]:
-                                c = Method(None, None, constructor["signature"], constructor["class"], None, Side.BOTH, False)
+                                c = Method(None, constructor["method_id"], constructor["signature"], constructor["class"], None, Side.BOTH, False)
                                 if constructor["method_id"] in constructor_params.keys():
                                     for param in constructor_params[constructor["method_id"]].values():
                                         c.add_parameter(Parameter(None, param["param"], param["name"], None,
@@ -835,6 +923,7 @@ class MCPDownloader(MappingDownloader):
                                         c.add_parameter(Parameter(None, p["param"], p["name"], None, Side(int(p["side"]) + 1)))
                                     else:
                                         c.add_parameter(Parameter(None, param, param, None, Side.BOTH))
+                                    c.intermediate_name = method_id
 
                             classes[class_name].add_constructor(c)
 

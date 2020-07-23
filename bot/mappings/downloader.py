@@ -69,15 +69,20 @@ LENIENCY = getenv("LENIENCY", 75)
 def matches(name: Optional[str], match: str):
     if name is None:
         return False
-    if '/' in name:
-        names = name.split('/')
-        if fuzz.ratio(names[-1], match) > LENIENCY:
-            return True
-        total = 0
-        for n in names:
-            total += fuzz.ratio(n, match)
-        return total > LENIENCY * len(names)
-    return fuzz.ratio(name, match) > LENIENCY
+    if match.lower() == name.lower():
+        return True
+    if "/" in name:
+        return match in name
+    return False
+    # if '/' in name:
+    #     names = name.split('/')
+    #     if fuzz.ratio(names[-1], match) > LENIENCY:
+    #         return True
+    #     total = 0
+    #     for n in names:
+    #         total += fuzz.ratio(n, match)
+    #     return total > LENIENCY * len(names)
+    # return fuzz.ratio(name, match) > LENIENCY
 
 
 @default_representation
@@ -136,13 +141,15 @@ class Side(Enum):
 class Parameter(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
-        return {"original_name": self.original_name,
-                "intermediate_name": self.intermediate_name, "name": self.name, "description": self.description,
-                "side": self.__side.value}
+        return {"o": self.original_name,
+                "i": self.intermediate_name, "n": self.name, "d": self.description,
+                "s": self.__side.value}
 
     @staticmethod
     def deserialize(o: Dict[str, Any]):
-        return Parameter(o["original_name"], o["intermediate_name"], o["name"], o["description"], Side(o["side"]))
+        if "original_name" in o.keys():
+            return Parameter(o["original_name"], o["intermediate_name"], o["name"], o["description"], Side(o["side"]))
+        return Parameter(o["o"], o["i"], o["n"], o["d"], Side(o["s"]))
 
     def __init__(self, original_name: Optional[str], intermediate_name: str,
                  name: Optional[str], description: Optional[str], side: Side) -> None:
@@ -162,18 +169,25 @@ class Parameter(Mapping):
 class Method(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
-        return {"original_name": self.original_name,
-                "intermediate_name": self.intermediate_name, "name": self.name, "description": self.description,
-                "side": self.__side.value, "static": self.__static, "signature": self.__signature,
-                "parameters": self.__parameters}
+        return {"o": self.original_name,
+                "i": self.intermediate_name, "n": self.name, "d": self.description,
+                "s": self.__side.value, "t": self.__static, "g": self.__signature,
+                "p": self.__parameters}
 
     @staticmethod
     def deserialize(o: Dict[str, Any]):
-        m = Method(o["original_name"], o["intermediate_name"], o["signature"], o["name"], o["description"],
-                   Side(o["side"]), o["static"])
-        for param in o["parameters"]:
-            m.add_parameter(param)
-        return m
+        if "original_name" in o.keys():
+            m = Method(o["original_name"], o["intermediate_name"], o["signature"], o["name"], o["description"],
+                       Side(o["side"]), o["static"])
+            for param in o["parameters"]:
+                m.add_parameter(param)
+            return m
+        else:
+            m = Method(o["o"], o["i"], o["g"], o["n"], o["d"],
+                       Side(o["s"]), o["t"])
+            for param in o["p"]:
+                m.add_parameter(param)
+            return m
 
     def __init__(self, original_name: Optional[str], intermediate_name: Optional[str], signature: str,
                  name: Optional[str], description: Optional[str], side: Side, static: bool) -> None:
@@ -230,13 +244,15 @@ class Method(Mapping):
 class Field(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
-        return {"original_name": self.original_name,
-                "intermediate_name": self.intermediate_name, "name": self.name, "description": self.description,
-                "side": self.__side.value}
+        return {"o": self.original_name,
+                "i": self.intermediate_name, "n": self.name, "d": self.description,
+                "s": self.__side.value}
 
     @staticmethod
     def deserialize(o: Dict[str, Any]):
-        return Field(o["original_name"], o["intermediate_name"], o["name"], o["description"], Side(o["side"]))
+        if "original_name" in o.keys():
+            return Field(o["original_name"], o["intermediate_name"], o["name"], o["description"], Side(o["side"]))
+        return Field(o["o"], o["i"], o["n"], o["d"], Side(o["s"]))
 
     def __init__(self, original_name: str, intermediate_name: str,
                  name: Optional[str], description: Optional[str], side: Side) -> None:
@@ -259,22 +275,34 @@ class Field(Mapping):
 class Class(Mapping):
 
     def serialize(self) -> Dict[str, Any]:
-        return {"original_name": self.original_name, "intermediate_name": self.intermediate_name, "name": self.name,
-                "description": self.description, "child_classes": self.__child_classes, "fields": self.__fields,
-                "methods": self.__methods, "constructors": self.__constructors}
+        return {"o": self.original_name, "i": self.intermediate_name, "n": self.name,
+                "d": self.description, "c": self.__child_classes, "f": self.__fields,
+                "m": self.__methods, "s": self.__constructors}
 
     @staticmethod
     def deserialize(o: Dict[str, Any]):
-        c = Class(o["original_name"], o["intermediate_name"], o["name"], o["description"])
-        for child_class in o["child_classes"]:
-            c.add_child_class(child_class)
-        for field in o["fields"]:
-            c.add_field(field)
-        for method in o["methods"]:
-            c.add_method(method)
-        for constructor in o["constructors"]:
-            c.add_constructor(constructor)
-        return c
+        if "original_name" in o.keys():
+            c = Class(o["original_name"], o["intermediate_name"], o["name"], o["description"])
+            for child_class in o["child_classes"]:
+                c.add_child_class(child_class)
+            for field in o["fields"]:
+                c.add_field(field)
+            for method in o["methods"]:
+                c.add_method(method)
+            for constructor in o["constructors"]:
+                c.add_constructor(constructor)
+            return c
+        else:
+            c = Class(o["o"], o["i"], o["n"], o["d"])
+            for child_class in o["c"]:
+                c.add_child_class(child_class)
+            for field in o["f"]:
+                c.add_field(field)
+            for method in o["m"]:
+                c.add_method(method)
+            for constructor in o["s"]:
+                c.add_constructor(constructor)
+            return c
 
     def __init__(self, original_name: str, intermediate_name: str, name: Optional[str] = None,
                  description: Optional[str] = None) -> None:

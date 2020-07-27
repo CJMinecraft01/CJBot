@@ -495,7 +495,7 @@ class MCPVersions:
         for key, value in versions.items():
             vs.append(MCPVersions.MCPVersion(key, value["snapshot"], value["stable"]))
 
-        vs.append(MCPVersions.MCPVersion("1.16.1", [20200707], []))
+        vs.append(MCPVersions.MCPVersion("1.16.1", [20200723], []))
         vs = sorted(vs, key=lambda ver: ver.mc_version, reverse=True)
         self.__latest = vs[0]
         self.__versions = {str(version.mc_version): version for version in vs}
@@ -517,11 +517,11 @@ class MCPVersions:
 
 
 class MCPDownloader(MappingDownloader):
-    VERSION_JSON = "http://export.mcpbot.bspk.rs/versions.json"
+    VERSION_JSON = "http://files.minecraftforge.net/maven/de/oceanlabs/mcp/versions.json"
     SRGS_URL = lambda version: f"http://files.minecraftforge.net/maven/de/oceanlabs/mcp/mcp/{version}/mcp-{version}-srg.zip"
     TSRGS_URL = lambda version: f"http://files.minecraftforge.net/maven/de/oceanlabs/mcp/mcp_config/{version}/mcp_config-{version}.zip"
-    MAPPINGS_URL_SNAPSHOT = lambda mc_version, snapshot: f"http://export.mcpbot.bspk.rs/mcp_snapshot/{snapshot}-{mc_version}/mcp_snapshot-{snapshot}-{mc_version}.zip"
-    MAPPINGS_URL_STABLE = lambda mc_version, snapshot: f"http://export.mcpbot.bspk.rs/mcp_stable/{snapshot}-{mc_version}/mcp_stable-{snapshot}-{mc_version}.zip"
+    MAPPINGS_URL_SNAPSHOT = lambda mc_version, snapshot: f"http://files.minecraftforge.net/maven/de/oceanlabs/mcp/mcp_snapshot/{snapshot}-{mc_version}/mcp_snapshot-{snapshot}-{mc_version}.zip"
+    MAPPINGS_URL_STABLE = lambda mc_version, snapshot: f"http://files.minecraftforge.net/maven/de/oceanlabs/mcp/mcp_stable/{snapshot}-{mc_version}/mcp_stable-{snapshot}-{mc_version}.zip"
 
     SRG_PARAM = compile(r"(?:p_)?(\d+)_(\d+)_?")
     SRG_CONSTRUCTOR_PARAM = compile(r"(?:p_i)?(\d+)_(\d+)_?")

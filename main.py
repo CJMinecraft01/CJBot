@@ -8,7 +8,7 @@ logging.basicConfig(format="[%(asctime)s] [%(name)s/%(levelname)s]: %(message)s"
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="website/templates/", static_folder="website/static/")
 app.config.from_object(config)
 
 db = SQLAlchemy(app)

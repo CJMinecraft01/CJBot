@@ -9,3 +9,4 @@ pbwrap
 bidict
 fuzzywuzzy
 python-Levenshtein-wheels
+flask-restful

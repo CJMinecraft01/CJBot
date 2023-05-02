@@ -7,7 +7,7 @@ authors = ["repl.it user <replituser@example.com>"]
 [tool.poetry.dependencies]
 python = "^3.8"
 discord = "^1.0.1"
-Flask = "^1.1.2"
+Flask = "^2.3.2"
 Flask-SQLAlchemy = "^2.4.3"
 python-dotenv = "^0.13.0"
 requests = "^2.24.0"
